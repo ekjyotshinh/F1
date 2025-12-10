@@ -17,6 +17,7 @@ function RaceDashboard() {
   const [selectedRaceId, setSelectedRaceId] = useState(''); // Can be RoundNumber or race name, using RoundNumber for precision if available
 
   const [initializing, setInitializing] = useState(true);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   // Fetch available years on mount
   useEffect(() => {
@@ -67,6 +68,7 @@ function RaceDashboard() {
     setLoading(true);
     setError(null);
     setData(null); // Clear previous data
+    setShowAnalytics(false); // Hide analytics when loading new race
     
     try {
       const response = await axios.get(`${API_URL}/api/race/${selectedYear}/${selectedRaceId}`);
@@ -168,12 +170,28 @@ function RaceDashboard() {
                     <td>{row.GridPosition}</td>
                 </tr>
                 ))}
-            </tbody>
+              </tbody>
             </table>
 
-            <RaceAnalytics year={selectedYear} raceId={selectedRaceId} />
-        </>
-      )}
+            {/* Analytics Toggle Button */}
+            <div className="analytics-toggle">
+              <button 
+                className="analytics-btn"
+                onClick={() => setShowAnalytics(!showAnalytics)}
+              >
+                {showAnalytics ? '📊 Hide Analytics' : '📊 Show Analytics'}
+              </button>
+            </div>
+
+            {/* Conditionally render analytics only when requested */}
+            {showAnalytics && (
+              <RaceAnalytics 
+                year={selectedYear} 
+                raceName={selectedRaceId} 
+              />
+            )}
+          </>
+        )}
     </div>
   );
 }

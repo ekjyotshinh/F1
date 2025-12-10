@@ -278,6 +278,38 @@ button:focus-visible {
   }
 }
 
+/* Analytics Toggle */
+.analytics-toggle {
+  margin: 2rem 0;
+  text-align: center;
+}
+
+.analytics-btn {
+  padding: 0.75rem 2rem;
+  background: linear-gradient(135deg, #2a2a3d 0%, #1f1f2e 100%);
+  color: #fff;
+  border: 2px solid #ff1801;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.analytics-btn:hover {
+  background: linear-gradient(135deg, #ff1801 0%, #cc1401 100%);
+  box-shadow: 0 6px 12px rgba(255, 24, 1, 0.5);
+  transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+  .analytics-btn {
+    width: 100%;
+    padding: 1rem;
+  }
+}
+
 .race-header {
   margin-bottom: 2rem;
 }
