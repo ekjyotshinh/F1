@@ -112,6 +112,26 @@ def get_race_data(year: int, race_name: str, response: Response):
                 race_time = str(val).replace("0 days ", "")
 
         # Prepare list
+        # DEBUG: Log raw data from FastF1
+        print(f"\n=== DEBUG: FastF1 Raw Data for {year} race {identifier} ===")
+        print(f"Results shape: {results.shape}")
+        print(f"Results columns: {results.columns.tolist()}")
+        print(f"\nFirst 3 rows Position column:")
+        print(f"  dtype: {results['Position'].dtype}")
+        print(f"  values: {results['Position'].head(3).tolist()}")
+        print(f"  has NaN: {results['Position'].isna().any()}")
+        print(f"\nFirst 3 rows GridPosition column:")
+        print(f"  dtype: {results['GridPosition'].dtype}")
+        print(f"  values: {results['GridPosition'].head(3).tolist()}")
+        print(f"  has NaN: {results['GridPosition'].isna().any()}")
+        print(f"\nFirst 3 rows Time column:")
+        print(f"  dtype: {results['Time'].dtype}")
+        print(f"  values: {results['Time'].head(3).tolist()}")
+        print(f"  has NaN: {results['Time'].isna().any()}")
+        print(f"\nFirst 3 rows Status column:")
+        print(f"  values: {results['Status'].head(3).tolist()}")
+        print("=== END DEBUG ===\n")
+        
         # data handling for JSON serialization (handle NaNs, timedeltas)
         results_list = []
         
@@ -132,6 +152,18 @@ def get_race_data(year: int, race_name: str, response: Response):
         for idx, row in results.iterrows():
             # Convert NaN to None for JSON serialization, but keep valid numbers
             # Try Position first, fallback to ClassifiedPosition
+            
+            # DEBUG: Log first row conversion
+            if len(results_list) == 0:
+                print(f"\n=== DEBUG: First Row Conversion ===")
+                print(f"Position raw: {row['Position']} (type: {type(row['Position'])})")
+                print(f"Position notna: {pd.notna(row['Position'])}")
+                print(f"GridPosition raw: {row['GridPosition']} (type: {type(row['GridPosition'])})")
+                print(f"GridPosition notna: {pd.notna(row['GridPosition'])}")
+                print(f"Time raw: {row['Time']} (type: {type(row['Time'])})")
+                print(f"Time notna: {pd.notna(row['Time'])}")
+                print(f"Status raw: {row['Status']}")
+            
             try:
                 if pd.notna(row['Position']):
                     position = int(row['Position'])
@@ -148,6 +180,12 @@ def get_race_data(year: int, race_name: str, response: Response):
             except (ValueError, TypeError) as e:
                 print(f"ERROR converting GridPosition: {e}, value: {row['GridPosition']}")
                 grid_position = None
+            
+            # DEBUG: Log first row result
+            if len(results_list) == 0:
+                print(f"Converted Position: {position}")
+                print(f"Converted GridPosition: {grid_position}")
+                print("=== END DEBUG ===\n")
             
             results_list.append({
                 "Position": position,

@@ -139,59 +139,56 @@ function RaceDashboard() {
 
       {data && !loading && (
         <>
-            <div className="race-header">
-                <h2>{data.race_name} {selectedYear}</h2>
-                <p><strong>Date:</strong> {new Date(data.race_date).toLocaleDateString()}</p>
-                <div className="stats-grid">
-                    <div className="stat-card">
-                        <h3>Fastest Lap</h3>
-                         <p>{data.fastest_lap.driver} ({data.fastest_lap.time})</p>
-                    </div>
-                </div>
-            </div>
-
-            <table>
-            <thead>
-                <tr>
-                <th>Pos</th>
-                <th>Driver</th>
-                <th>Team</th>
-                <th>Time/Status</th>
-                <th>Grid</th>
-                </tr>
-            </thead>
-            <tbody>
-                {data.results.map((row) => (
-                <tr key={row.Abbreviation}>
-                    <td>{row.Position}</td>
-                    <td>{row.Abbreviation}</td>
-                    <td>{row.TeamName}</td>
-                    <td>{row.Time || row.Status}</td>
-                    <td>{row.GridPosition}</td>
-                </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Analytics Toggle Button */}
-            <div className="analytics-toggle">
-              <button 
-                className="analytics-btn"
-                onClick={() => setShowAnalytics(!showAnalytics)}
-              >
-                {showAnalytics ? '📊 Hide Analytics' : '📊 Show Analytics'}
-              </button>
-            </div>
-
-            {/* Conditionally render analytics only when requested */}
-            {showAnalytics && (
-              <RaceAnalytics 
-                year={selectedYear} 
-                raceName={selectedRaceId} 
-              />
-            )}
-          </>
-        )}
+          <div className="race-header">
+              <h2>{data.race_name} {selectedYear}</h2>
+              <p><strong>Date:</strong> {new Date(data.race_date).toLocaleDateString()}</p>
+              <div className="stats-grid">
+                  <div className="stat-card">
+                      <h3>Fastest Lap</h3>
+                       <p>{data.fastest_lap.driver} ({data.fastest_lap.time})</p>
+                  </div>
+              </div>
+          </div>
+          <table>
+          <thead>
+              <tr>
+              <th>Pos</th>
+              <th>Driver</th>
+              <th>Team</th>
+              <th>Time/Status</th>
+              <th>Grid</th>
+              </tr>
+          </thead>
+          <tbody>
+              {data.results.map((row) => (
+              <tr key={row.Abbreviation}>
+                  <td>{row.Position}</td>
+                  <td>{row.Abbreviation}</td>
+                  <td>{row.TeamName}</td>
+                  <td>{row.Time || row.Status}</td>
+                  <td>{row.GridPosition}</td>
+              </tr>
+              ))}
+            </tbody>
+          </table>
+          {/* Analytics Toggle Button */}
+          <div className="analytics-toggle">
+            <button 
+              className="analytics-btn"
+              onClick={() => setShowAnalytics(!showAnalytics)}
+            >
+              {showAnalytics ? '📊 Hide Analytics' : '📊 Show Analytics'}
+            </button>
+          </div>
+          {/* Conditionally render analytics only when requested */}
+          {showAnalytics && (
+            <RaceAnalytics 
+              year={selectedYear} 
+              raceName={selectedRaceId} 
+            />
+          )}
+        </>
+      )}
     </div>
   );
 }
