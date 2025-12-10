@@ -87,5 +87,11 @@ func proxyRequest(c *gin.Context, targetURL string) {
 		return
 	}
 
+	// Pass through Cache-Control headers from the data service
+	if cacheControl := resp.Header.Get("Cache-Control"); cacheControl != "" {
+		c.Header("Cache-Control", cacheControl)
+	}
+
 	c.Data(resp.StatusCode, "application/json", body)
 }
+

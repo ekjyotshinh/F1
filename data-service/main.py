@@ -1,6 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 import fastf1
 import pandas as pd
+import os
+
+# Enable FastF1 cache
+cache_dir = os.path.join(os.path.dirname(__file__), '.fastf1_cache')
+os.makedirs(cache_dir, exist_ok=True)
+fastf1.Cache.enable_cache(cache_dir)
 
 app = FastAPI()
 
@@ -8,14 +14,20 @@ app = FastAPI()
 def read_root():
     return {"message": "F1 Data Service"}
 
+
 @app.get("/api/years")
-def get_years():
+def get_years(response: Response):
+    # Set cache headers - years list is static
+    response.headers["Cache-Control"] = "public, max-age=86400, immutable"  # 24 hours
     # Return a list of recent years supported by FastF1 (and relevant for this app)
     # FastF1 data goes back quite a way, but let's stick to recent history for the UI
     return [year for year in range(2018, 2025)]
 
+
 @app.get("/api/schedule/{year}")
-def get_schedule(year: int):
+def get_schedule(year: int, response: Response):
+    # Set cache headers - schedule is historical data
+    response.headers["Cache-Control"] = "public, max-age=86400, immutable"  # 24 hours
     schedule = fastf1.get_event_schedule(year)
     # Filter for actual races (excluding pre-season testing if possible, though 'include_testing=False' is default in newer versions, 
     # let's just return what we have but format it nice)
@@ -34,7 +46,9 @@ def get_schedule(year: int):
     return events
 
 @app.get("/api/race/{year}/{race_name}")
-def get_race_data(year: int, race_name: str):
+def get_race_data(year: int, race_name: str, response: Response):
+    # Set cache headers - race results are historical data
+    response.headers["Cache-Control"] = "public, max-age=86400, immutable"  # 24 hours
     try:
         # race_name could be the round number (int) or name (str)
         # Try to parse as int first if it looks like one
@@ -91,7 +105,9 @@ def get_race_data(year: int, race_name: str):
         return {"error": str(e)}
 
 @app.get("/api/analytics/{year}/{race_name}")
-def get_race_analytics(year: int, race_name: str):
+def get_race_analytics(year: int, race_name: str, response: Response):
+    # Set cache headers - analytics are historical data
+    response.headers["Cache-Control"] = "public, max-age=86400, immutable"  # 24 hours
     try:
         # race_name could be the round number (int) or name (str)
         identifier = race_name
