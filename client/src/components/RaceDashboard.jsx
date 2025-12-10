@@ -134,6 +134,12 @@ function RaceDashboard() {
         </button>
       </div>
 
+      {/* Data source info */}
+      <div className="data-info">
+        <p>📊 Data powered by <a href="https://github.com/theOehrly/Fast-F1" target="_blank" rel="noopener noreferrer">FastF1</a></p>
+        <p className="loading-notice">⏱️ Loading may take 20-30 seconds while fetching race data</p>
+      </div>
+
       {loading && <Loader />}
       {error && <div className="error">{error}</div>}
 

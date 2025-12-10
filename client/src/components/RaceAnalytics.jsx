@@ -74,7 +74,18 @@ function RaceAnalytics({ year, raceId }) {
     );
   };
 
-  if (loading) return <Loader />;
+  if (loading) {
+    return (
+      <div className="analytics-section">
+        <h2>Race Analytics</h2>
+        <div className="analytics-loading">
+          <Loader />
+          <p className="loading-notice">⏱️ Loading detailed analytics data (20-30 seconds)...</p>
+        </div>
+      </div>
+    );
+  }
+  
   if (error) return <div className="error">{error}</div>;
   if (!analyticsData) return null;
 
