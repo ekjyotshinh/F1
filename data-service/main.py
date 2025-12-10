@@ -101,17 +101,25 @@ def get_race_data(year: int, race_name: str, response: Response):
         # Prepare list
         # data handling for JSON serialization (handle NaNs, timedeltas)
         results_list = []
-        for _, row in results.iterrows():
+        for idx, row in results.iterrows():
             # Convert NaN to None for JSON serialization, but keep valid numbers
             # Use pd.isna() to check for NaN, then convert to int if valid
+            
+            # Debug logging for first row
+            if len(results_list) == 0:
+                print(f"DEBUG First row - Position: {row['Position']} (type: {type(row['Position'])}, notna: {pd.notna(row['Position'])})")
+                print(f"DEBUG First row - GridPosition: {row['GridPosition']} (type: {type(row['GridPosition'])}, notna: {pd.notna(row['GridPosition'])})")
+            
             try:
                 position = int(row['Position']) if pd.notna(row['Position']) else None
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as e:
+                print(f"ERROR converting Position: {e}, value: {row['Position']}")
                 position = None
                 
             try:
                 grid_position = int(row['GridPosition']) if pd.notna(row['GridPosition']) else None
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as e:
+                print(f"ERROR converting GridPosition: {e}, value: {row['GridPosition']}")
                 grid_position = None
             
             results_list.append({
