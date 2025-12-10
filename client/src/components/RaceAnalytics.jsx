@@ -13,6 +13,8 @@ import {
 import { Line } from 'react-chartjs-2';
 import Loader from './Loader';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -36,7 +38,7 @@ function RaceAnalytics({ year, raceId }) {
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get(`http://localhost:3000/api/analytics/${year}/${raceId}`);
+        const response = await axios.get(`${API_URL}/api/analytics/${year}/${raceId}`);
         setAnalyticsData(response.data);
         
         // Auto-select top 5 drivers by final position

@@ -3,6 +3,8 @@ import axios from 'axios';
 import Loader from './Loader';
 import RaceAnalytics from './RaceAnalytics';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 function RaceDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -20,7 +22,7 @@ function RaceDashboard() {
   useEffect(() => {
     const fetchYears = async () => {
       try {
-        const response = await axios.get('http://localhost:3000/api/years');
+        const response = await axios.get(`${API_URL}/api/years`);
         setYears(response.data);
         if (response.data.length > 0) {
            // Default to last year if available, or just keep 2023
@@ -42,7 +44,7 @@ function RaceDashboard() {
     const fetchSchedule = async () => {
       if (!selectedYear) return;
       try {
-        const response = await axios.get(`http://localhost:3000/api/schedule/${selectedYear}`);
+        const response = await axios.get(`${API_URL}/api/schedule/${selectedYear}`);
         setSchedule(response.data);
         // Default to first race if available
         if (response.data.length > 0) {
@@ -64,7 +66,7 @@ function RaceDashboard() {
       setError(null);
       try {
         // Use the Node.js backend proxy
-        const response = await axios.get(`http://localhost:3000/api/race/${selectedYear}/${selectedRaceId}`);
+        const response = await axios.get(`${API_URL}/api/race/${selectedYear}/${selectedRaceId}`);
         setData(response.data);
       } catch (err) {
         console.error("Error fetching data:", err);
