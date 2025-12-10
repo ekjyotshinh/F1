@@ -113,24 +113,24 @@ def get_race_data(year: int, race_name: str, response: Response):
 
         # Prepare list
         # DEBUG: Log raw data from FastF1
-        print(f"\n=== DEBUG: FastF1 Raw Data for {year} race {identifier} ===")
-        print(f"Results shape: {results.shape}")
-        print(f"Results columns: {results.columns.tolist()}")
-        print(f"\nFirst 3 rows Position column:")
-        print(f"  dtype: {results['Position'].dtype}")
-        print(f"  values: {results['Position'].head(3).tolist()}")
-        print(f"  has NaN: {results['Position'].isna().any()}")
-        print(f"\nFirst 3 rows GridPosition column:")
-        print(f"  dtype: {results['GridPosition'].dtype}")
-        print(f"  values: {results['GridPosition'].head(3).tolist()}")
-        print(f"  has NaN: {results['GridPosition'].isna().any()}")
-        print(f"\nFirst 3 rows Time column:")
-        print(f"  dtype: {results['Time'].dtype}")
-        print(f"  values: {results['Time'].head(3).tolist()}")
-        print(f"  has NaN: {results['Time'].isna().any()}")
-        print(f"\nFirst 3 rows Status column:")
-        print(f"  values: {results['Status'].head(3).tolist()}")
-        print("=== END DEBUG ===\n")
+        # print(f"\n=== DEBUG: FastF1 Raw Data for {year} race {identifier} ===")
+        # print(f"Results shape: {results.shape}")
+        # print(f"Results columns: {results.columns.tolist()}")
+        # print(f"\nFirst 3 rows Position column:")
+        # print(f"  dtype: {results['Position'].dtype}")
+        # print(f"  values: {results['Position'].head(3).tolist()}")
+        # print(f"  has NaN: {results['Position'].isna().any()}")
+        # print(f"\nFirst 3 rows GridPosition column:")
+        # print(f"  dtype: {results['GridPosition'].dtype}")
+        # print(f"  values: {results['GridPosition'].head(3).tolist()}")
+        # print(f"  has NaN: {results['GridPosition'].isna().any()}")
+        # print(f"\nFirst 3 rows Time column:")
+        # print(f"  dtype: {results['Time'].dtype}")
+        # print(f"  values: {results['Time'].head(3).tolist()}")
+        # print(f"  has NaN: {results['Time'].isna().any()}")
+        # print(f"\nFirst 3 rows Status column:")
+        # print(f"  values: {results['Status'].head(3).tolist()}")
+        # print("=== END DEBUG ===\n")
         
         # data handling for JSON serialization (handle NaNs, timedeltas)
         results_list = []
@@ -141,28 +141,24 @@ def get_race_data(year: int, race_name: str, response: Response):
         has_classified = 'ClassifiedPosition' in results.columns and results['ClassifiedPosition'].notna().any()
         
         if not has_position and not has_classified:
+            print(f"WARNING: No position data available for {year} race {identifier}")
             return {
                 "error": "Incomplete race data",
-                "message": f"Race results for {session.event['EventName']} ({year}) are not yet available. FastF1 doesn't have complete data for this race. Please try a different race from 2018-2023.",
+                "message": f"⚠️ Race results for {session.event['EventName']} ({year}) are not available. FastF1's data source (Ergast API) doesn't have complete data for {year}.",
                 "race_name": session.event['EventName'],
                 "race_date": session.event['EventDate'].isoformat() if pd.notnull(session.event['EventDate']) else None,
-                "suggestion": "Try looking for a different race"
+                "suggestion": "✅ Try races from 2018-2022 for complete data",
+                "working_examples": [
+                    "2022 Abu Dhabi Grand Prix",
+                    "2021 Monaco Grand Prix", 
+                    "2020 British Grand Prix",
+                    "2019 Australian Grand Prix"
+                ]
             }
         
         for idx, row in results.iterrows():
             # Convert NaN to None for JSON serialization, but keep valid numbers
             # Try Position first, fallback to ClassifiedPosition
-            
-            # DEBUG: Log first row conversion
-            if len(results_list) == 0:
-                print(f"\n=== DEBUG: First Row Conversion ===")
-                print(f"Position raw: {row['Position']} (type: {type(row['Position'])})")
-                print(f"Position notna: {pd.notna(row['Position'])}")
-                print(f"GridPosition raw: {row['GridPosition']} (type: {type(row['GridPosition'])})")
-                print(f"GridPosition notna: {pd.notna(row['GridPosition'])}")
-                print(f"Time raw: {row['Time']} (type: {type(row['Time'])})")
-                print(f"Time notna: {pd.notna(row['Time'])}")
-                print(f"Status raw: {row['Status']}")
             
             try:
                 if pd.notna(row['Position']):
@@ -181,12 +177,7 @@ def get_race_data(year: int, race_name: str, response: Response):
                 print(f"ERROR converting GridPosition: {e}, value: {row['GridPosition']}")
                 grid_position = None
             
-            # DEBUG: Log first row result
-            if len(results_list) == 0:
-                print(f"Converted Position: {position}")
-                print(f"Converted GridPosition: {grid_position}")
-                print("=== END DEBUG ===\n")
-            
+
             results_list.append({
                 "Position": position,
                 "Abbreviation": row['Abbreviation'],
