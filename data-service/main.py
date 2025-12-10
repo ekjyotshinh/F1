@@ -96,9 +96,9 @@ def get_race_data(year: int, race_name: str, response: Response):
         # data handling for JSON serialization (handle NaNs, timedeltas)
         results_list = []
         for _, row in results.iterrows():
-            # Convert NaN to None for JSON serialization
-            position = None if pd.isna(row['Position']) else float(row['Position'])
-            grid_position = None if pd.isna(row['GridPosition']) else float(row['GridPosition'])
+            # Convert NaN to None for JSON serialization, but keep valid numbers
+            position = None if pd.isna(row['Position']) else int(row['Position'])
+            grid_position = None if pd.isna(row['GridPosition']) else int(row['GridPosition'])
             
             results_list.append({
                 "Position": position,
