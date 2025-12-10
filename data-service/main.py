@@ -29,6 +29,19 @@ app.add_middleware(
 def read_root():
     return {"message": "F1 Data Service"}
 
+@app.post("/api/clear-cache")
+def clear_cache():
+    """Clear the FastF1 cache - use this if data seems corrupted"""
+    import shutil
+    try:
+        if os.path.exists(cache_dir):
+            shutil.rmtree(cache_dir)
+            os.makedirs(cache_dir, exist_ok=True)
+            fastf1.Cache.enable_cache(cache_dir)
+            return {"message": "Cache cleared successfully", "cache_dir": cache_dir}
+        return {"message": "No cache to clear"}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.get("/api/years")
 def get_years(response: Response):
@@ -101,19 +114,33 @@ def get_race_data(year: int, race_name: str, response: Response):
         # Prepare list
         # data handling for JSON serialization (handle NaNs, timedeltas)
         results_list = []
+        
+        # Check if we have valid position data
+        # Try Position first, fallback to ClassifiedPosition if needed
+        has_position = results['Position'].notna().any()
+        has_classified = 'ClassifiedPosition' in results.columns and results['ClassifiedPosition'].notna().any()
+        
+        if not has_position and not has_classified:
+            return {
+                "error": "Incomplete race data",
+                "message": f"Race results for {session.event['EventName']} ({year}) are not yet available. FastF1 doesn't have complete data for this race. Please try a different race from 2018-2023.",
+                "race_name": session.event['EventName'],
+                "race_date": session.event['EventDate'].isoformat() if pd.notnull(session.event['EventDate']) else None,
+                "suggestion": "Try looking for a different race"
+            }
+        
         for idx, row in results.iterrows():
             # Convert NaN to None for JSON serialization, but keep valid numbers
-            # Use pd.isna() to check for NaN, then convert to int if valid
-            
-            # Debug logging for first row
-            if len(results_list) == 0:
-                print(f"DEBUG First row - Position: {row['Position']} (type: {type(row['Position'])}, notna: {pd.notna(row['Position'])})")
-                print(f"DEBUG First row - GridPosition: {row['GridPosition']} (type: {type(row['GridPosition'])}, notna: {pd.notna(row['GridPosition'])})")
-            
+            # Try Position first, fallback to ClassifiedPosition
             try:
-                position = int(row['Position']) if pd.notna(row['Position']) else None
+                if pd.notna(row['Position']):
+                    position = int(row['Position'])
+                elif 'ClassifiedPosition' in results.columns and pd.notna(row['ClassifiedPosition']):
+                    position = int(row['ClassifiedPosition'])
+                else:
+                    position = None
             except (ValueError, TypeError) as e:
-                print(f"ERROR converting Position: {e}, value: {row['Position']}")
+                print(f"ERROR converting Position: {e}, Position: {row.get('Position')}, Classified: {row.get('ClassifiedPosition')}")
                 position = None
                 
             try:
