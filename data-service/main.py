@@ -166,9 +166,9 @@ def get_race_data(year: int, race_name: str, response: Response):
             
             try:
                 if pd.notna(row['Position']):
-                    position = int(row['Position'])
+                    position = row['Position']
                 elif 'ClassifiedPosition' in results.columns and pd.notna(row['ClassifiedPosition']):
-                    position = int(row['ClassifiedPosition'])
+                    position = row['ClassifiedPosition']
                 else:
                     position = None
             except (ValueError, TypeError) as e:
@@ -176,7 +176,7 @@ def get_race_data(year: int, race_name: str, response: Response):
                 position = None
                 
             try:
-                grid_position = int(row['GridPosition']) if pd.notna(row['GridPosition']) else None
+                grid_position = row['GridPosition'] if pd.notna(row['GridPosition']) else None
             except (ValueError, TypeError) as e:
                 print(f"ERROR converting GridPosition: {e}, value: {row['GridPosition']}")
                 grid_position = None
