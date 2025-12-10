@@ -3,10 +3,14 @@ import fastf1
 import pandas as pd
 import os
 
-# Enable FastF1 cache
+# Enable FastF1 cache (file-based only, no in-memory cache for Railway's limited RAM)
 cache_dir = os.path.join(os.path.dirname(__file__), '.fastf1_cache')
 os.makedirs(cache_dir, exist_ok=True)
 fastf1.Cache.enable_cache(cache_dir)
+
+# Disable in-memory caching to reduce memory usage
+fastf1.Cache.set_disabled()
+fastf1.Cache.enable_cache(cache_dir)  # Re-enable only file cache
 
 app = FastAPI()
 
@@ -61,6 +65,8 @@ def get_race_data(year: int, race_name: str, response: Response):
     # Set cache headers - race results are historical data
     response.headers["Cache-Control"] = "public, max-age=86400, immutable"  # 24 hours
     try:
+        import gc
+        
         # race_name could be the round number (int) or name (str)
         # Try to parse as int first if it looks like one
         identifier = race_name
@@ -109,13 +115,19 @@ def get_race_data(year: int, race_name: str, response: Response):
                 "Time": str(row['Time']).replace("0 days ", "") if pd.notnull(row['Time']) else "",
             })
 
-        return {
+        result = {
             "race_name": session.event['EventName'],
             "race_date": session.event['EventDate'].isoformat() if pd.notnull(session.event['EventDate']) else None,
             "race_time": race_time,
             "fastest_lap": fastest_lap_info,
             "results": results_list
         }
+        
+        # Clear session data from memory and force garbage collection
+        del session
+        gc.collect()
+        
+        return result
     except Exception as e:
         # Return detailed error for debugging
         import traceback
@@ -132,6 +144,8 @@ def get_race_analytics(year: int, race_name: str, response: Response):
     # Set cache headers - analytics are historical data
     response.headers["Cache-Control"] = "public, max-age=86400, immutable"  # 24 hours
     try:
+        import gc
+        
         # race_name could be the round number (int) or name (str)
         identifier = race_name
         if race_name.isdigit():
@@ -204,13 +218,19 @@ def get_race_analytics(year: int, race_name: str, response: Response):
                 "number": driver_num
             }
         
-        return {
+        result = {
             "lap_times": lap_times,
             "tire_strategy": tire_strategy,
             "position_changes": position_changes,
             "driver_info": driver_info,
             "total_laps": int(laps['LapNumber'].max()) if len(laps) > 0 else 0
         }
+        
+        # Clear session data from memory and force garbage collection
+        del session, laps
+        gc.collect()
+        
+        return result
     except Exception as e:
         # Return detailed error for debugging
         import traceback
