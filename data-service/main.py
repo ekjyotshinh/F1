@@ -89,3 +89,87 @@ def get_race_data(year: int, race_name: str):
     except Exception as e:
         # Simple error handling
         return {"error": str(e)}
+
+@app.get("/api/analytics/{year}/{race_name}")
+def get_race_analytics(year: int, race_name: str):
+    try:
+        # race_name could be the round number (int) or name (str)
+        identifier = race_name
+        if race_name.isdigit():
+            identifier = int(race_name)
+            
+        session = fastf1.get_session(year, identifier, 'R')
+        session.load()
+        
+        # Get all laps
+        laps = session.laps
+        
+        # Extract lap times for each driver
+        lap_times = {}
+        position_changes = {}
+        
+        # Get unique drivers
+        drivers = laps['Driver'].unique()
+        
+        for driver in drivers:
+            driver_laps = laps[laps['Driver'] == driver].sort_values('LapNumber')
+            
+            # Lap times (convert to seconds as float)
+            times = []
+            for _, lap in driver_laps.iterrows():
+                if pd.notnull(lap['LapTime']):
+                    # Convert timedelta to total seconds
+                    times.append(lap['LapTime'].total_seconds())
+                else:
+                    times.append(None)
+            
+            lap_times[driver] = times
+            
+            # Position changes
+            positions = driver_laps['Position'].tolist()
+            # Convert any NaN to None for JSON serialization
+            positions = [int(p) if pd.notnull(p) else None for p in positions]
+            position_changes[driver] = positions
+        
+        # Extract tire strategy
+        tire_strategy = []
+        for driver in drivers:
+            driver_laps = laps[laps['Driver'] == driver].sort_values('LapNumber')
+            
+            current_compound = None
+            stint = 0
+            
+            for _, lap in driver_laps.iterrows():
+                compound = lap['Compound']
+                
+                # Detect tire change (new stint)
+                if pd.notnull(compound) and compound != current_compound:
+                    stint += 1
+                    current_compound = compound
+                    
+                    tire_strategy.append({
+                        "driver": driver,
+                        "lap": int(lap['LapNumber']),
+                        "compound": compound,
+                        "stint": stint
+                    })
+        
+        # Get driver info for better display
+        results = session.results
+        driver_info = {}
+        for _, row in results.iterrows():
+            driver_info[row['Abbreviation']] = {
+                "name": row['Abbreviation'],
+                "team": row['TeamName'],
+                "number": str(row['DriverNumber']) if pd.notnull(row['DriverNumber']) else "N/A"
+            }
+        
+        return {
+            "lap_times": lap_times,
+            "tire_strategy": tire_strategy,
+            "position_changes": position_changes,
+            "driver_info": driver_info,
+            "total_laps": int(laps['LapNumber'].max()) if len(laps) > 0 else 0
+        }
+    except Exception as e:
+        return {"error": str(e)}
