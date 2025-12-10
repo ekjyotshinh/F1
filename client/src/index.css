@@ -260,3 +260,141 @@ button:focus-visible {
   text-align: center;
   font-weight: 600;
 }
+
+/* Analytics Styles */
+.analytics-section {
+  margin-top: 3rem;
+  padding: 2rem;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 12px;
+  border: 1px solid #ff1801;
+}
+
+.analytics-section h2 {
+  color: #ff1801;
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.analytics-section h3 {
+  color: #fff;
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.driver-selector {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+}
+
+.driver-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.driver-btn {
+  padding: 0.5rem 1rem;
+  background: #0f0f1e;
+  color: #aaa;
+  border: 2px solid #444;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.driver-btn:hover {
+  border-color: #ff1801;
+  color: #fff;
+}
+
+.driver-btn.active {
+  background: #ff1801;
+  color: #fff;
+  border-color: #ff1801;
+  box-shadow: 0 0 15px rgba(255, 24, 1, 0.5);
+}
+
+.charts-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.chart-wrapper {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1.5rem;
+  border-radius: 8px;
+  height: 400px;
+}
+
+.tire-strategy-section {
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+}
+
+.tire-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.tire-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+}
+
+.tire-driver {
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+}
+
+.tire-timeline {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tire-stint {
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #000;
+}
+
+.tire-soft {
+  background: #ff1801;
+  color: #fff;
+}
+
+.tire-medium {
+  background: #ffd700;
+}
+
+.tire-hard {
+  background: #fff;
+}
+
+.tire-intermediate {
+  background: #00d400;
+}
+
+.tire-wet {
+  background: #0090ff;
+  color: #fff;
+}
+

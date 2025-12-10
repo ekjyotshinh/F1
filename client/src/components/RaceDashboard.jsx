@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Loader from './Loader';
+import RaceAnalytics from './RaceAnalytics';
 
 function RaceDashboard() {
   const [data, setData] = useState(null);
@@ -119,10 +120,6 @@ function RaceDashboard() {
                 <p><strong>Date:</strong> {new Date(data.race_date).toLocaleDateString()}</p>
                 <div className="stats-grid">
                     <div className="stat-card">
-                        <h3>Winner's Time</h3>
-                        <p>{data.race_time}</p>
-                    </div>
-                    <div className="stat-card">
                         <h3>Fastest Lap</h3>
                          <p>{data.fastest_lap.driver} ({data.fastest_lap.time})</p>
                     </div>
@@ -151,6 +148,8 @@ function RaceDashboard() {
                 ))}
             </tbody>
             </table>
+
+            <RaceAnalytics year={selectedYear} raceId={selectedRaceId} />
         </>
       )}
     </div>

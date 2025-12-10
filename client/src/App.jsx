@@ -7,16 +7,11 @@ function App() {
     <Router>
       <div className="app-container">
         <nav>
-          <h1>F1 Dashboard</h1>
-          <ul>
-            <li><Link to="/">Dashboard</Link></li>
-            <li><Link to="/drivers">Driver Comparison</Link></li>
-          </ul>
+          <h1>F1 Analytics</h1>
         </nav>
         <main>
           <Routes>
             <Route path="/" element={<RaceDashboard />} />
-            <Route path="/drivers" element={<div>Driver Comparison Placeholder</div>} />
           </Routes>
         </main>
       </div>
