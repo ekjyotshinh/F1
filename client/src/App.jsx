@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import RaceDashboard from './components/RaceDashboard';
+import AdminPage from './components/AdminPage';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <main>
           <Routes>
             <Route path="/" element={<RaceDashboard />} />
+            <Route path="/admin" element={<AdminPage />} />
           </Routes>
         </main>
       </div>

@@ -64,6 +64,11 @@ func main() {
 		proxyRequest(c, targetURL)
 	})
 
+	// Admin endpoint - clear cache
+	r.POST("/api/clear-cache", func(c *gin.Context) {
+		proxyClearCache(c, pythonServiceURL+"/api/clear-cache")
+	})
+
 	fmt.Printf("Server running on http://localhost%s\n", serverPort)
 	r.Run(serverPort)
 }
@@ -95,6 +100,37 @@ func proxyRequest(c *gin.Context, targetURL string) {
 	// Pass through Cache-Control headers from the data service
 	if cacheControl := resp.Header.Get("Cache-Control"); cacheControl != "" {
 		c.Header("Cache-Control", cacheControl)
+	}
+
+	c.Data(resp.StatusCode, "application/json", body)
+}
+
+func proxyClearCache(c *gin.Context, targetURL string) {
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	// Create POST request
+	req, err := http.NewRequest("POST", targetURL, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to create request: %v", err)})
+		return
+	}
+
+	// Execute request
+	resp, err := client.Do(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to reach data service: %v", err)})
+		return
+	}
+	defer resp.Body.Close()
+
+	// Read response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read response body"})
+		return
 	}
 
 	c.Data(resp.StatusCode, "application/json", body)

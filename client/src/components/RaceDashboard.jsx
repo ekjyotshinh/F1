@@ -57,27 +57,27 @@ function RaceDashboard() {
     fetchSchedule();
   }, [selectedYear]);
 
-  // Fetch race data when selectedYear or selectedRaceId changes
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!selectedYear || !selectedRaceId) return;
+  // Manual race data fetch - triggered by button click
+  const loadRaceData = async () => {
+    if (!selectedYear || !selectedRaceId) {
+      setError('Please select both year and race');
+      return;
+    }
 
-      setLoading(true);
-      setError(null);
-      try {
-        // Use the Node.js backend proxy
-        const response = await axios.get(`${API_URL}/api/race/${selectedYear}/${selectedRaceId}`);
-        setData(response.data);
-      } catch (err) {
-        console.error("Error fetching data:", err);
-        setError("Failed to load race data. Ensure backend is running.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [selectedYear, selectedRaceId]);
+    setLoading(true);
+    setError(null);
+    setData(null); // Clear previous data
+    
+    try {
+      const response = await axios.get(`${API_URL}/api/race/${selectedYear}/${selectedRaceId}`);
+      setData(response.data);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      setError(err.response?.data?.message || "Failed to load race data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleYearChange = (e) => {
       setSelectedYear(parseInt(e.target.value));
@@ -93,23 +93,43 @@ function RaceDashboard() {
   return (
     <div className="dashboard">
       <div className="controls">
-          <label>
-              Year:
-              <select value={selectedYear} onChange={handleYearChange}>
-                  {years.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-          </label>
-          
-          <label>
-              Race:
-              <select value={selectedRaceId} onChange={handleRaceChange}>
-                  {schedule.map(race => (
-                      <option key={race.RoundNumber} value={race.RoundNumber}>
-                          {race.EventName}
-                      </option>
-                  ))}
-              </select>
-          </label>
+        <div className="control-group">
+          <label htmlFor="year-select">Year:</label>
+          <select 
+            id="year-select"
+            value={selectedYear} 
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+          >
+            {years.map(year => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="control-group">
+          <label htmlFor="race-select">Race:</label>
+          <select 
+            id="race-select"
+            value={selectedRaceId} 
+            onChange={(e) => setSelectedRaceId(e.target.value)}
+            disabled={!schedule.length}
+          >
+            <option value="">Select a race</option>
+            {schedule.map(race => (
+              <option key={race.RoundNumber} value={race.RoundNumber}>
+                {race.EventName}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button 
+          className="load-race-btn"
+          onClick={loadRaceData}
+          disabled={!selectedYear || !selectedRaceId || loading}
+        >
+          {loading ? 'Loading...' : 'Load Race'}
+        </button>
       </div>
 
       {loading && <Loader />}
