@@ -3,7 +3,7 @@ import RaceDashboard from './components/RaceDashboard';
 
 function App() {
   return (
-    <Router>
+    <Router basename="/F1">
       <div className="app-container">
         <nav>
           <div className="nav-content">

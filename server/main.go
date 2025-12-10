@@ -12,7 +12,7 @@ import (
 
 const (
 	// Using 127.0.0.1 to avoid IPv6 issues seen with localhost
-	pythonServiceURL = "python-data-service-production.up.railway.app"
+	pythonServiceURL = "https://python-data-service-production.up.railway.app"
 	serverPort       = ":3000"
 )
 

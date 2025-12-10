@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["go-proxy-server-production-f4fd.up.railway.app"],
+    allow_origins=["https://go-proxy-server-production-f4fd.up.railway.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
