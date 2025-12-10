@@ -1,0 +1,66 @@
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+)
+
+const (
+	// Using 127.0.0.1 to avoid IPv6 issues seen with localhost
+	pythonServiceURL = "http://127.0.0.1:8000"
+	serverPort       = ":3000"
+)
+
+func main() {
+	r := gin.Default()
+
+	// CORS configuration
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:5173", "http://127.0.0.1:5173"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
+
+	r.GET("/", func(c *gin.Context) {
+		c.String(http.StatusOK, "F1 Dashboard API (Go/Gin)")
+	})
+
+	// Proxy handler for race data
+	r.GET("/api/race/:year/:race_name", func(c *gin.Context) {
+		year := c.Param("year")
+		raceName := c.Param("race_name")
+
+		targetURL := fmt.Sprintf("%s/api/race/%s/%s", pythonServiceURL, year, raceName)
+
+		resp, err := http.Get(targetURL)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to reach data service: %v", err)})
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			c.JSON(resp.StatusCode, gin.H{"error": "Data service returned error"})
+			return
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read response body"})
+			return
+		}
+
+		c.Data(resp.StatusCode, "application/json", body)
+	})
+
+	fmt.Printf("Server running on http://localhost%s\n", serverPort)
+	r.Run(serverPort)
+}
