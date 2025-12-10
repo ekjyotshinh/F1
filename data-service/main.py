@@ -79,7 +79,8 @@ def get_race_data(year: int, race_name: str, response: Response):
                 "driver": fastest_lap['Driver'],
                 "time": str(fastest_lap['LapTime']).replace("0 days ", "") # extensive formatting could be done here
             }
-        except:
+        except Exception as e:
+            print(f"Error getting fastest lap: {e}")
             fastest_lap_info = {"driver": "N/A", "time": "N/A"}
 
         # Get Winner's Race Time (Position 1)
@@ -95,12 +96,16 @@ def get_race_data(year: int, race_name: str, response: Response):
         # data handling for JSON serialization (handle NaNs, timedeltas)
         results_list = []
         for _, row in results.iterrows():
+            # Convert NaN to None for JSON serialization
+            position = None if pd.isna(row['Position']) else float(row['Position'])
+            grid_position = None if pd.isna(row['GridPosition']) else float(row['GridPosition'])
+            
             results_list.append({
-                "Position": row['Position'],
+                "Position": position,
                 "Abbreviation": row['Abbreviation'],
                 "TeamName": row['TeamName'],
                 "Status": row['Status'],
-                "GridPosition": row['GridPosition'],
+                "GridPosition": grid_position,
                 "Time": str(row['Time']).replace("0 days ", "") if pd.notnull(row['Time']) else "",
             })
 
@@ -112,8 +117,15 @@ def get_race_data(year: int, race_name: str, response: Response):
             "results": results_list
         }
     except Exception as e:
-        # Simple error handling
-        return {"error": str(e)}
+        # Return detailed error for debugging
+        import traceback
+        error_detail = {
+            "error": str(e),
+            "type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        }
+        print(f"Error in get_race_data: {error_detail}")
+        return error_detail
 
 @app.get("/api/analytics/{year}/{race_name}")
 def get_race_analytics(year: int, race_name: str, response: Response):
@@ -185,10 +197,11 @@ def get_race_analytics(year: int, race_name: str, response: Response):
         results = session.results
         driver_info = {}
         for _, row in results.iterrows():
+            driver_num = str(row['DriverNumber']) if pd.notnull(row['DriverNumber']) else "N/A"
             driver_info[row['Abbreviation']] = {
                 "name": row['Abbreviation'],
                 "team": row['TeamName'],
-                "number": str(row['DriverNumber']) if pd.notnull(row['DriverNumber']) else "N/A"
+                "number": driver_num
             }
         
         return {
@@ -199,4 +212,12 @@ def get_race_analytics(year: int, race_name: str, response: Response):
             "total_laps": int(laps['LapNumber'].max()) if len(laps) > 0 else 0
         }
     except Exception as e:
-        return {"error": str(e)}
+        # Return detailed error for debugging
+        import traceback
+        error_detail = {
+            "error": str(e),
+            "type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        }
+        print(f"Error in get_race_analytics: {error_detail}")
+        return error_detail
