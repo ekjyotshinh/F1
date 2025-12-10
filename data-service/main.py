@@ -2,6 +2,7 @@ from fastapi import FastAPI, Response
 import fastf1
 import pandas as pd
 import os
+import gc
 
 # Enable FastF1 cache (file-based only, no in-memory cache for Railway's limited RAM)
 cache_dir = os.path.join(os.path.dirname(__file__), '.fastf1_cache')
@@ -19,7 +20,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://go-proxy-server-production-f4fd.up.railway.app"],
+    allow_origins=[
+        "https://go-proxy-server-production-f4fd.up.railway.app",
+        "http://localhost:3000",
+        "http://localhost:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -313,3 +318,124 @@ def get_race_analytics(year: int, race_name: str, response: Response):
         }
         print(f"Error in get_race_analytics: {error_detail}")
         return error_detail
+
+@app.get("/api/telemetry/{year}/{race_name}")
+def get_telemetry(year: int, race_name: str, response: Response):
+    """
+    Get telemetry data for live race replay visualization with actual track coordinates.
+    Returns car X/Y positions sampled throughout the race.
+    """
+    try:
+        # Set cache headers
+        response.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour
+        
+        # Convert race_name to identifier
+        identifier = int(race_name) if race_name.isdigit() else race_name
+        
+        # Load session
+        session = fastf1.get_session(year, identifier, 'R')
+        session.load(telemetry=True, laps=True, weather=False)
+        
+        # Get all laps
+        laps = session.laps
+        
+        if laps is None or laps.empty:
+            return {
+                "error": "No lap data available",
+                "message": f"Lap data for {session.event['EventName']} ({year}) is not available."
+            }
+        
+        # Get unique drivers
+        drivers = laps['Driver'].unique().tolist()
+        
+        # Get track outline from first driver's first lap telemetry
+        try:
+            first_driver = drivers[0]
+            first_lap = laps[(laps['Driver'] == first_driver) & (laps['LapNumber'] == 1)].iloc[0]
+            lap_telemetry = first_lap.get_telemetry()
+            
+            if lap_telemetry is not None and not lap_telemetry.empty:
+                # Sample track outline (every 10th point to reduce size)
+                track_outline = []
+                for idx in range(0, len(lap_telemetry), 10):
+                    row = lap_telemetry.iloc[idx]
+                    if pd.notnull(row['X']) and pd.notnull(row['Y']):
+                        track_outline.append({
+                            "x": float(row['X']),
+                            "y": float(row['Y'])
+                        })
+            else:
+                track_outline = []
+        except Exception as e:
+            print(f"Could not get track outline: {e}")
+            track_outline = []
+        
+        # Sample every 5 laps to reduce data size
+        sample_laps = list(range(1, int(laps['LapNumber'].max()) + 1, 5))
+        telemetry_frames = []
+        
+        for lap_num in sample_laps:
+            lap_data = laps[laps['LapNumber'] == lap_num]
+            
+            if lap_data.empty:
+                continue
+            
+            frame = {
+                "lap": lap_num,
+                "positions": {}
+            }
+            
+            # Get position for each driver at this lap
+            for driver in drivers:
+                driver_lap = lap_data[lap_data['Driver'] == driver]
+                
+                if not driver_lap.empty:
+                    row = driver_lap.iloc[0]
+                    
+                    # Try to get telemetry for X/Y position
+                    try:
+                        tel = row.get_telemetry()
+                        if tel is not None and not tel.empty:
+                            # Get position at 50% through the lap
+                            mid_point = len(tel) // 2
+                            tel_row = tel.iloc[mid_point]
+                            
+                            frame["positions"][driver] = {
+                                "x": float(tel_row['X']) if pd.notnull(tel_row['X']) else None,
+                                "y": float(tel_row['Y']) if pd.notnull(tel_row['Y']) else None,
+                                "position": int(row['Position']) if pd.notnull(row['Position']) else None,
+                                "compound": row['Compound'] if 'Compound' in row and pd.notnull(row['Compound']) else None
+                            }
+                    except Exception as e:
+                        # Fallback if telemetry not available
+                        frame["positions"][driver] = {
+                            "x": None,
+                            "y": None,
+                            "position": int(row['Position']) if pd.notnull(row['Position']) else None,
+                            "compound": row['Compound'] if 'Compound' in row and pd.notnull(row['Compound']) else None
+                        }
+            
+            if frame["positions"]:
+                telemetry_frames.append(frame)
+        
+        result = {
+            "track": {
+                "name": session.event['EventName'],
+                "total_laps": int(laps['LapNumber'].max()) if not laps.empty else 0,
+                "outline": track_outline
+            },
+            "telemetry": telemetry_frames,
+            "total_frames": len(telemetry_frames)
+        }
+        
+        # Clean up
+        del session
+        gc.collect()
+        
+        return result
+        
+    except Exception as e:
+        print(f"Error in get_telemetry: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e), "traceback": traceback.format_exc()}

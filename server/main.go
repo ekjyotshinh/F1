@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	// Using 127.0.0.1 to avoid IPv6 issues seen with localhost
-	pythonServiceURL = "https://python-data-service-production.up.railway.app"
+	// Use localhost for development, Railway URL for production
+	//pythonServiceURL = "http://localhost:8000"
+	pythonServiceURL = "https://python-data-service-production.up.railway.app" // Production
 	serverPort       = ":3000"
 )
 
@@ -21,7 +22,7 @@ func main() {
 
 	// CORS configuration
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"https://ekjyotshinh.github.io"},
+		AllowOrigins:     []string{"https://ekjyotshinh.github.io", "http://localhost:3000", "http://localhost:5173"}, // Added localhost origins
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -61,6 +62,15 @@ func main() {
 		raceName := c.Param("race_name")
 
 		targetURL := fmt.Sprintf("%s/api/analytics/%s/%s", pythonServiceURL, year, raceName)
+		proxyRequest(c, targetURL)
+	})
+
+	// Proxy handler for telemetry (live race replay)
+	r.GET("/api/telemetry/:year/:race_name", func(c *gin.Context) {
+		year := c.Param("year")
+		raceName := c.Param("race_name")
+
+		targetURL := fmt.Sprintf("%s/api/telemetry/%s/%s", pythonServiceURL, year, raceName)
 		proxyRequest(c, targetURL)
 	})
 

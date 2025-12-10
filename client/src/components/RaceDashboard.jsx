@@ -185,6 +185,13 @@ function RaceDashboard() {
             >
               {showAnalytics ? '📊 Hide Analytics' : '📊 Show Analytics'}
             </button>
+            
+            <button 
+              className="track-view-btn"
+              onClick={() => window.location.href = `/F1/track/${selectedYear}/${selectedRaceId}`}
+            >
+              🏁 View Track Replay
+            </button>
           </div>
           {/* Conditionally render analytics only when requested */}
           {showAnalytics && (

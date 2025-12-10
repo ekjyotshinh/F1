@@ -1,6 +1,13 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useParams } from 'react-router-dom';
 import RaceDashboard from './components/RaceDashboard';
 import AdminPage from './components/AdminPage';
+import TrackView from './components/TrackView';
+
+// Wrapper to pass URL params as props
+function TrackViewWrapper() {
+  const { year, raceId } = useParams();
+  return <TrackView year={parseInt(year)} raceId={raceId} />;
+}
 
 function App() {
   return (
@@ -18,6 +25,7 @@ function App() {
         <main>
           <Routes>
             <Route path="/" element={<RaceDashboard />} />
+            <Route path="/track/:year/:raceId" element={<TrackViewWrapper />} />
             <Route path="/admin" element={<AdminPage />} />
           </Routes>
         </main>
