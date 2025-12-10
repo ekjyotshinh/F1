@@ -69,7 +69,12 @@ func main() {
 }
 
 func proxyRequest(c *gin.Context, targetURL string) {
-	resp, err := http.Get(targetURL)
+	// Create HTTP client with longer timeout for FastF1 data loading
+	client := &http.Client{
+		Timeout: 120 * time.Second, // 2 minutes for FastF1 downloads
+	}
+	
+	resp, err := client.Get(targetURL)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to reach data service: %v", err)})
 		return
