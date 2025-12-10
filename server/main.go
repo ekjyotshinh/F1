@@ -12,7 +12,7 @@ import (
 
 const (
 	// Using 127.0.0.1 to avoid IPv6 issues seen with localhost
-	pythonServiceURL = "http://127.0.0.1:8000"
+	pythonServiceURL = "python-data-service-production.up.railway.app"
 	serverPort       = ":3000"
 )
 
@@ -21,7 +21,7 @@ func main() {
 
 	// CORS configuration
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://127.0.0.1:5173"},
+		AllowOrigins:     []string{"https://ekjyotshinh.github.io/F1/"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
 		ExposeHeaders:    []string{"Content-Length"},
