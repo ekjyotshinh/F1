@@ -184,7 +184,7 @@ function RaceDashboard() {
           {showAnalytics && (
             <RaceAnalytics 
               year={selectedYear} 
-              raceName={selectedRaceId} 
+              raceId={selectedRaceId} 
             />
           )}
         </>
