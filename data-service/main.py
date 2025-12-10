@@ -103,8 +103,16 @@ def get_race_data(year: int, race_name: str, response: Response):
         results_list = []
         for _, row in results.iterrows():
             # Convert NaN to None for JSON serialization, but keep valid numbers
-            position = None if pd.isna(row['Position']) else int(row['Position'])
-            grid_position = None if pd.isna(row['GridPosition']) else int(row['GridPosition'])
+            # Use pd.isna() to check for NaN, then convert to int if valid
+            try:
+                position = int(row['Position']) if pd.notna(row['Position']) else None
+            except (ValueError, TypeError):
+                position = None
+                
+            try:
+                grid_position = int(row['GridPosition']) if pd.notna(row['GridPosition']) else None
+            except (ValueError, TypeError):
+                grid_position = None
             
             results_list.append({
                 "Position": position,
