@@ -1,21 +1,69 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import Loader from './Loader';
 
 function RaceDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // default to Bahrain 2023 for now
-  const year = 2023;
-  const race = 'Bahrain';
+  // Selection State
+  const [years, setYears] = useState([]);
+  const [selectedYear, setSelectedYear] = useState(2023);
+  const [schedule, setSchedule] = useState([]);
+  const [selectedRaceId, setSelectedRaceId] = useState(''); // Can be RoundNumber or race name, using RoundNumber for precision if available
 
+  const [initializing, setInitializing] = useState(true);
+
+  // Fetch available years on mount
+  useEffect(() => {
+    const fetchYears = async () => {
+      try {
+        const response = await axios.get('http://localhost:3000/api/years');
+        setYears(response.data);
+        if (response.data.length > 0) {
+           // Default to last year if available, or just keep 2023
+           const lastYear = response.data[response.data.length - 1];
+           setSelectedYear(lastYear);
+        }
+      } catch (err) {
+        console.error("Error fetching years:", err);
+        setError("Failed to load configuration (years). Check backend.");
+      } finally {
+        setInitializing(false);
+      }
+    };
+    fetchYears();
+  }, []);
+
+  // Fetch schedule when selectedYear changes
+  useEffect(() => {
+    const fetchSchedule = async () => {
+      if (!selectedYear) return;
+      try {
+        const response = await axios.get(`http://localhost:3000/api/schedule/${selectedYear}`);
+        setSchedule(response.data);
+        // Default to first race if available
+        if (response.data.length > 0) {
+           setSelectedRaceId(response.data[0].RoundNumber);
+        }
+      } catch (err) {
+        console.error("Error fetching schedule:", err);
+      }
+    };
+    fetchSchedule();
+  }, [selectedYear]);
+
+  // Fetch race data when selectedYear or selectedRaceId changes
   useEffect(() => {
     const fetchData = async () => {
+      if (!selectedYear || !selectedRaceId) return;
+
       setLoading(true);
+      setError(null);
       try {
         // Use the Node.js backend proxy
-        const response = await axios.get(`http://localhost:3000/api/race/${year}/${race}`);
+        const response = await axios.get(`http://localhost:3000/api/race/${selectedYear}/${selectedRaceId}`);
         setData(response.data);
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -26,37 +74,84 @@ function RaceDashboard() {
     };
 
     fetchData();
-  }, []);
+  }, [selectedYear, selectedRaceId]);
 
-  if (loading) return <div>Loading Race Data...</div>;
-  if (error) return <div className="error">{error}</div>;
+  const handleYearChange = (e) => {
+      setSelectedYear(parseInt(e.target.value));
+  };
+
+  const handleRaceChange = (e) => {
+      setSelectedRaceId(e.target.value);
+  };
+
+  if (initializing) return <Loader />;
+  if (!years.length && error) return <div className="error">{error}</div>;
 
   return (
     <div className="dashboard">
-      <h2>Race Results: {race} {year}</h2>
-      {data ? (
-        <table>
-          <thead>
-            <tr>
-              <th>Pos</th>
-              <th>Driver</th>
-              <th>Team</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row) => (
-              <tr key={row.Abbreviation}>
-                <td>{row.Position}</td>
-                <td>{row.Abbreviation}</td>
-                <td>{row.TeamName}</td>
-                <td>{row.Status}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p>No data available</p>
+      <div className="controls">
+          <label>
+              Year:
+              <select value={selectedYear} onChange={handleYearChange}>
+                  {years.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+          </label>
+          
+          <label>
+              Race:
+              <select value={selectedRaceId} onChange={handleRaceChange}>
+                  {schedule.map(race => (
+                      <option key={race.RoundNumber} value={race.RoundNumber}>
+                          {race.EventName}
+                      </option>
+                  ))}
+              </select>
+          </label>
+      </div>
+
+      {loading && <Loader />}
+      {error && <div className="error">{error}</div>}
+
+      {data && !loading && (
+        <>
+            <div className="race-header">
+                <h2>{data.race_name} {selectedYear}</h2>
+                <p><strong>Date:</strong> {new Date(data.race_date).toLocaleDateString()}</p>
+                <div className="stats-grid">
+                    <div className="stat-card">
+                        <h3>Winner's Time</h3>
+                        <p>{data.race_time}</p>
+                    </div>
+                    <div className="stat-card">
+                        <h3>Fastest Lap</h3>
+                         <p>{data.fastest_lap.driver} ({data.fastest_lap.time})</p>
+                    </div>
+                </div>
+            </div>
+
+            <table>
+            <thead>
+                <tr>
+                <th>Pos</th>
+                <th>Driver</th>
+                <th>Team</th>
+                <th>Time/Status</th>
+                <th>Grid</th>
+                </tr>
+            </thead>
+            <tbody>
+                {data.results.map((row) => (
+                <tr key={row.Abbreviation}>
+                    <td>{row.Position}</td>
+                    <td>{row.Abbreviation}</td>
+                    <td>{row.TeamName}</td>
+                    <td>{row.Time || row.Status}</td>
+                    <td>{row.GridPosition}</td>
+                </tr>
+                ))}
+            </tbody>
+            </table>
+        </>
       )}
     </div>
   );
