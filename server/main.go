@@ -55,6 +55,15 @@ func main() {
 		proxyRequest(c, targetURL)
 	})
 
+	// Proxy handler for analytics
+	r.GET("/api/analytics/:year/:race_name", func(c *gin.Context) {
+		year := c.Param("year")
+		raceName := c.Param("race_name")
+
+		targetURL := fmt.Sprintf("%s/api/analytics/%s/%s", pythonServiceURL, year, raceName)
+		proxyRequest(c, targetURL)
+	})
+
 	fmt.Printf("Server running on http://localhost%s\n", serverPort)
 	r.Run(serverPort)
 }
