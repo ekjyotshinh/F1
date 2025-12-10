@@ -10,6 +10,17 @@ fastf1.Cache.enable_cache(cache_dir)
 
 app = FastAPI()
 
+# Add CORS middleware for production
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Will be restricted to specific domain after deployment
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.get("/")
 def read_root():
     return {"message": "F1 Data Service"}
