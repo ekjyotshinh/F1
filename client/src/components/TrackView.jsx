@@ -41,6 +41,7 @@ function TrackView({ year, raceId }) {
 
       setLoading(true);
       setError(null);
+      setError(null);
       setAllFrames([]);
       setTelemetryData(null);
       
@@ -48,22 +49,33 @@ function TrackView({ year, raceId }) {
         const TOTAL_CHUNKS = 10;
         let trackInfo = null;
         let accumulatedFrames = [];
+        let cumulativeTimeOffset = 0; // Track the max cumulative time from previous chunks
 
         // Fetch chunks sequentially
         for (let chunkNum = 0; chunkNum < TOTAL_CHUNKS; chunkNum++) {
           setLoadingProgress({ current: chunkNum + 1, total: TOTAL_CHUNKS });
           
           const response = await axios.get(`${API_URL}/api/telemetry/${year}/${raceId}/chunk/${chunkNum}`);
-          const chunkData = response.data;
+
+          if (response.data.error) {
+            throw new Error(response.data.error);
+          }
 
           // Store track info from first chunk
           if (chunkNum === 0) {
-            trackInfo = chunkData.track;
+            trackInfo = response.data.track;
           }
 
-          // Process telemetry frames - convert from per-point to per-frame format
-          const frames = processChunkFrames(chunkData.telemetry);
-          accumulatedFrames = [...accumulatedFrames, ...frames];
+          // Process the chunk's telemetry data and apply cumulative time offset
+          const chunkFrames = processChunkFrames(response.data.telemetry, cumulativeTimeOffset);
+          
+          // Update the cumulative time offset for the next chunk
+          if (chunkFrames.length > 0) {
+            const maxCumulativeTime = Math.max(...chunkFrames.map(f => f.cumulative_time));
+            cumulativeTimeOffset = maxCumulativeTime;
+          }
+          
+          accumulatedFrames = [...accumulatedFrames, ...chunkFrames];
 
           // Update state with accumulated data so far
           setAllFrames(accumulatedFrames);
@@ -93,7 +105,7 @@ function TrackView({ year, raceId }) {
   }, [year, raceId]);
 
   // Helper function to convert chunk telemetry format to frame format
-  const processChunkFrames = (telemetryPoints) => {
+  const processChunkFrames = (telemetryPoints, timeOffset = 0) => {
     // Group by cumulative time (total race time) instead of lap+time
     const frameMap = new Map();
     const driversInChunk = new Set();
@@ -102,8 +114,11 @@ function TrackView({ year, raceId }) {
       // Track all drivers we've seen
       driversInChunk.add(point.driver);
       
+      // Apply the cumulative time offset from previous chunks
+      const adjustedCumulativeTime = point.cumulative_time + timeOffset;
+      
       // Round cumulative_time to nearest second for grouping
-      const roundedTime = Math.round(point.cumulative_time);
+      const roundedTime = Math.round(adjustedCumulativeTime);
       
       // Create a unique key for each frame based on cumulative time
       // This ensures all drivers at the same race time are in the same frame
