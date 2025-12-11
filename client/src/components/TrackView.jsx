@@ -204,23 +204,6 @@ function TrackView({ year, raceId }) {
     };
   }, [isPlaying, playbackSpeed, telemetryData]);
 
-  // Update tooltip position when driver is highlighted from standings
-  useEffect(() => {
-    if (highlightedDriver && interpolatedPositions[highlightedDriver]) {
-      const data = interpolatedPositions[highlightedDriver];
-      // Find the SVG element to get proper coordinates
-      const svgElement = document.querySelector('.track-svg');
-      if (svgElement && data.x && data.y) {
-        const rect = svgElement.getBoundingClientRect();
-        const svgPoint = svgElement.createSVGPoint();
-        svgPoint.x = data.x;
-        svgPoint.y = data.y;
-        const screenPoint = svgPoint.matrixTransform(svgElement.getScreenCTM());
-        setTooltipPos({ x: screenPoint.x, y: screenPoint.y - 20 });
-      }
-    }
-  }, [highlightedDriver, interpolatedPositions]);
-
   if (loading) {
     return (
       <div className="track-view">
