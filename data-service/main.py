@@ -439,3 +439,153 @@ def get_telemetry(year: int, race_name: str, response: Response):
         import traceback
         traceback.print_exc()
         return {"error": str(e), "traceback": traceback.format_exc()}
+
+@app.get("/api/telemetry/{year}/{race_name}/chunk/{chunk_num}")
+def get_telemetry_chunk(year: int, race_name: str, chunk_num: int, response: Response):
+    """
+    Get telemetry data in chunks for progressive loading.
+    Divides race into 4 chunks, samples at ~1Hz (1 point per second per driver).
+    """
+    try:
+        # Set cache headers
+        response.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour
+        
+        # Convert race_name to identifier
+        identifier = int(race_name) if race_name.isdigit() else race_name
+        
+        # Validate chunk number
+        TOTAL_CHUNKS = 10
+        if chunk_num < 0 or chunk_num >= TOTAL_CHUNKS:
+            return {"error": f"Invalid chunk number. Must be 0-{TOTAL_CHUNKS-1}"}
+        
+        # Load session
+        session = fastf1.get_session(year, identifier, 'R')
+        session.load(telemetry=True, laps=True, weather=False)
+        
+        # Get all laps
+        laps = session.laps
+        
+        if laps is None or laps.empty:
+            return {
+                "error": "No lap data available",
+                "message": f"Lap data for {session.event['EventName']} ({year}) is not available."
+            }
+        
+        # Get unique drivers
+        drivers = laps['Driver'].unique().tolist()
+        total_laps = int(laps['LapNumber'].max())
+        
+        # Calculate chunk boundaries
+        chunk_size = total_laps / TOTAL_CHUNKS
+        start_lap = int(chunk_num * chunk_size) + 1
+        end_lap = int((chunk_num + 1) * chunk_size) if chunk_num < TOTAL_CHUNKS - 1 else total_laps
+        
+        # Get track outline (only for first chunk to save bandwidth)
+        track_outline = []
+        if chunk_num == 0:
+            try:
+                first_driver = drivers[0]
+                first_lap = laps[(laps['Driver'] == first_driver) & (laps['LapNumber'] == 1)].iloc[0]
+                lap_telemetry = first_lap.get_telemetry()
+                
+                if lap_telemetry is not None and not lap_telemetry.empty:
+                    # Sample track outline (every 10th point to reduce size)
+                    for idx in range(0, len(lap_telemetry), 10):
+                        row = lap_telemetry.iloc[idx]
+                        if pd.notnull(row['X']) and pd.notnull(row['Y']):
+                            track_outline.append({
+                                "x": float(row['X']),
+                                "y": float(row['Y'])
+                            })
+            except Exception as e:
+                print(f"Could not get track outline: {e}")
+        
+        # Sample telemetry at ~1Hz (1 point per second)
+        telemetry_frames = []
+        
+        for lap_num in range(start_lap, end_lap + 1):
+            lap_data = laps[laps['LapNumber'] == lap_num]
+            
+            if lap_data.empty:
+                continue
+            
+            # For each driver, get telemetry and sample at 1Hz
+            for driver in drivers:
+                driver_lap = lap_data[lap_data['Driver'] == driver]
+                
+                if driver_lap.empty:
+                    continue
+                
+                row = driver_lap.iloc[0]
+                
+                try:
+                    tel = row.get_telemetry()
+                    if tel is None or tel.empty:
+                        continue
+                    
+                    # Sample at exactly 1Hz (1 point per second)
+                    # FastF1 telemetry has SessionTime which we can use
+                    if 'SessionTime' not in tel.columns:
+                        continue
+                    
+                    # Get the time range for this lap
+                    start_time = tel['SessionTime'].iloc[0].total_seconds()
+                    end_time = tel['SessionTime'].iloc[-1].total_seconds()
+                    
+                    # Sample at 1 second intervals
+                    current_time = start_time
+                    while current_time <= end_time:
+                        # Find the closest telemetry point to this time
+                        time_diffs = abs(tel['SessionTime'].apply(lambda x: x.total_seconds()) - current_time)
+                        closest_idx = time_diffs.idxmin()
+                        tel_row = tel.loc[closest_idx]
+                        
+                        if pd.notnull(tel_row['X']) and pd.notnull(tel_row['Y']):
+                            # Calculate time within lap (0.0 to 1.0)
+                            time_in_lap = (current_time - start_time) / (end_time - start_time) if end_time > start_time else 0.0
+                            
+                            telemetry_frames.append({
+                                "lap": lap_num,
+                                "driver": driver,
+                                "time_in_lap": round(time_in_lap, 3),
+                                "x": float(tel_row['X']),
+                                "y": float(tel_row['Y']),
+                                "position": int(row['Position']) if pd.notnull(row['Position']) else None,
+                                "compound": row['Compound'] if 'Compound' in row and pd.notnull(row['Compound']) else None,
+                                "speed": float(tel_row['Speed']) if 'Speed' in tel_row and pd.notnull(tel_row['Speed']) else None
+                            })
+                        
+                        current_time += 1.0  # Advance by 1 second
+                
+                except Exception as e:
+                    print(f"Error getting telemetry for {driver} lap {lap_num}: {e}")
+                    continue
+        
+        result = {
+            "chunk_info": {
+                "chunk_num": chunk_num,
+                "total_chunks": TOTAL_CHUNKS,
+                "start_lap": start_lap,
+                "end_lap": end_lap
+            },
+            "track": {
+                "name": session.event['EventName'],
+                "total_laps": total_laps,
+                "outline": track_outline  # Only in first chunk
+            },
+            "telemetry": telemetry_frames,
+            "total_frames": len(telemetry_frames)
+        }
+        
+        # Clean up
+        del session
+        gc.collect()
+        
+        return result
+        
+    except Exception as e:
+        print(f"Error in get_telemetry_chunk: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e), "traceback": traceback.format_exc()}
+

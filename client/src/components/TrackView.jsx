@@ -25,29 +25,126 @@ function TrackView({ year, raceId }) {
   const [currentFrame, setCurrentFrame] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 10 });
+  const [allFrames, setAllFrames] = useState([]);
+  const [hoveredDriver, setHoveredDriver] = useState(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [allDrivers, setAllDrivers] = useState(new Set());
+  const lastKnownPositions = useRef({});
   const animationRef = useRef(null);
   const lastUpdateRef = useRef(Date.now());
 
   useEffect(() => {
-    const fetchTelemetry = async () => {
+    const fetchTelemetryChunks = async () => {
       if (!year || !raceId) return;
 
       setLoading(true);
       setError(null);
+      setAllFrames([]);
+      setTelemetryData(null);
+      
       try {
-        const response = await axios.get(`${API_URL}/api/telemetry/${year}/${raceId}`);
-        setTelemetryData(response.data);
-        setCurrentFrame(0);
+        const TOTAL_CHUNKS = 10;
+        let trackInfo = null;
+        let accumulatedFrames = [];
+
+        // Fetch chunks sequentially
+        for (let chunkNum = 0; chunkNum < TOTAL_CHUNKS; chunkNum++) {
+          setLoadingProgress({ current: chunkNum + 1, total: TOTAL_CHUNKS });
+          
+          const response = await axios.get(`${API_URL}/api/telemetry/${year}/${raceId}/chunk/${chunkNum}`);
+          const chunkData = response.data;
+
+          // Store track info from first chunk
+          if (chunkNum === 0) {
+            trackInfo = chunkData.track;
+          }
+
+          // Process telemetry frames - convert from per-point to per-frame format
+          const frames = processChunkFrames(chunkData.telemetry);
+          accumulatedFrames = [...accumulatedFrames, ...frames];
+
+          // Update state with accumulated data so far
+          setAllFrames(accumulatedFrames);
+          setTelemetryData({
+            track: trackInfo,
+            telemetry: accumulatedFrames,
+            total_frames: accumulatedFrames.length
+          });
+
+          // After first chunk, user can start watching
+          if (chunkNum === 0) {
+            setLoading(false);
+          }
+        }
+
+        // All chunks loaded
+        setLoadingProgress({ current: TOTAL_CHUNKS, total: TOTAL_CHUNKS });
+        
       } catch (err) {
         console.error("Error fetching telemetry:", err);
         setError(err.response?.data?.message || "Failed to load telemetry data.");
-      } finally {
         setLoading(false);
       }
     };
 
-    fetchTelemetry();
+    fetchTelemetryChunks();
   }, [year, raceId]);
+
+  // Helper function to convert chunk telemetry format to frame format
+  const processChunkFrames = (telemetryPoints) => {
+    // Group by lap and time to create frames
+    const frameMap = new Map();
+    const driversInChunk = new Set();
+
+    telemetryPoints.forEach(point => {
+      // Track all drivers we've seen
+      driversInChunk.add(point.driver);
+      
+      // Round time_in_lap to 2 decimal places for grouping
+      // Backend samples at 1Hz, so points should naturally group
+      const roundedTime = Math.round(point.time_in_lap * 100) / 100;
+      
+      // Create a unique key for each frame (lap + time)
+      const frameKey = `${point.lap}_${roundedTime}`;
+      
+      if (!frameMap.has(frameKey)) {
+        frameMap.set(frameKey, {
+          lap: point.lap,
+          time_in_lap: roundedTime,
+          positions: {}
+        });
+      }
+
+      const frame = frameMap.get(frameKey);
+      frame.positions[point.driver] = {
+        x: point.x,
+        y: point.y,
+        position: point.position,
+        compound: point.compound,
+        speed: point.speed
+      };
+      
+      // Update last known position for this driver
+      lastKnownPositions.current[point.driver] = {
+        x: point.x,
+        y: point.y,
+        position: point.position,
+        compound: point.compound,
+        speed: point.speed
+      };
+    });
+
+    // Update the set of all drivers
+    setAllDrivers(prev => new Set([...prev, ...driversInChunk]));
+
+    // Convert map to sorted array
+    return Array.from(frameMap.values()).sort((a, b) => {
+      if (a.lap !== b.lap) return a.lap - b.lap;
+      return a.time_in_lap - b.time_in_lap;
+    });
+  };
+
 
   // Animation loop
   useEffect(() => {
@@ -59,6 +156,8 @@ function TrackView({ year, raceId }) {
       lastUpdateRef.current = now;
 
       setCurrentFrame(prev => {
+        // Backend samples at 1Hz, so each frame represents ~1 second of race time
+        // At 1x speed, we should advance 1 frame per second for real-time playback
         const nextFrame = prev + (deltaTime * playbackSpeed);
         if (nextFrame >= telemetryData.telemetry.length - 1) {
           setIsPlaying(false);
@@ -86,7 +185,12 @@ function TrackView({ year, raceId }) {
         <h2>Live Race Replay</h2>
         <div className="analytics-loading">
           <Loader />
-          <p className="loading-notice">⏱️ Loading track and telemetry data (30-60 seconds)...</p>
+          <p className="loading-notice">
+            ⏱️ Loading chunk {loadingProgress.current} of {loadingProgress.total}...
+          </p>
+          <p className="loading-notice">
+            First chunk will display in ~30-60 seconds
+          </p>
         </div>
       </div>
     );
@@ -97,7 +201,48 @@ function TrackView({ year, raceId }) {
     return <div className="error">Track data not available for this race</div>;
   }
 
-  const frame = telemetryData.telemetry[Math.floor(currentFrame)] || telemetryData.telemetry[0];
+  // Get current and next frame for interpolation
+  const frameIndex = Math.floor(currentFrame);
+  const nextFrameIndex = Math.min(frameIndex + 1, telemetryData.telemetry.length - 1);
+  const frame = telemetryData.telemetry[frameIndex] || telemetryData.telemetry[0];
+  const nextFrame = telemetryData.telemetry[nextFrameIndex] || frame;
+  
+  // Calculate interpolation factor (0 to 1)
+  const interpolationFactor = currentFrame - frameIndex;
+
+  // Helper function to interpolate between two values
+  const lerp = (start, end, factor) => {
+    return start + (end - start) * factor;
+  };
+
+  // Interpolate positions - only show drivers with actual position data
+  const interpolatedPositions = {};
+  
+  // Get all drivers from current frame
+  Object.keys(frame.positions).forEach(driver => {
+    const currentPos = frame.positions[driver];
+    const nextPos = nextFrame.positions[driver];
+
+    if (currentPos && currentPos.x && currentPos.y) {
+      // Update last known position for this driver
+      lastKnownPositions.current[driver] = currentPos;
+      
+      if (nextPos && nextPos.x && nextPos.y) {
+        // Interpolate between current and next position
+        interpolatedPositions[driver] = {
+          x: lerp(currentPos.x, nextPos.x, interpolationFactor),
+          y: lerp(currentPos.y, nextPos.y, interpolationFactor),
+          position: currentPos.position,
+          compound: currentPos.compound,
+          speed: currentPos.speed
+        };
+      } else {
+        // No next position, use current
+        interpolatedPositions[driver] = currentPos;
+      }
+    }
+  });
+
   const trackOutline = telemetryData.track.outline;
 
   // Calculate SVG viewBox from track outline
@@ -115,11 +260,17 @@ function TrackView({ year, raceId }) {
     `${idx === 0 ? 'M' : 'L'} ${point.x} ${point.y}`
   ).join(' ') + ' Z';
 
+
   return (
     <div className="track-view">
       <div className="track-header">
         <h2>🏁 {telemetryData.track.name}</h2>
         <p>Lap {frame.lap} / {telemetryData.track.total_laps}</p>
+        {loadingProgress.current < loadingProgress.total && (
+          <p className="loading-notice" style={{ fontSize: '0.9em', color: '#ffa500' }}>
+            📥 Loading chunk {loadingProgress.current} of {loadingProgress.total} in background...
+          </p>
+        )}
       </div>
 
       {/* Playback Controls */}
@@ -156,59 +307,116 @@ function TrackView({ year, raceId }) {
         />
       </div>
 
-      {/* SVG Track Visualization */}
-      <div className="track-canvas">
-        <svg viewBox={viewBox} className="track-svg">
-          {/* Track outline */}
-          <path
-            d={trackPath}
-            fill="none"
-            stroke="#333"
-            strokeWidth="80"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d={trackPath}
-            fill="none"
-            stroke="#1a1a1a"
-            strokeWidth="60"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+      {/* Split Screen: Standings + Track */}
+      <div className="race-split-view">
+        {/* Left: Live Standings */}
+        <div className="live-standings">
+          <h3>📊 Current Standings</h3>
+          <div className="standings-list">
+            {Object.entries(interpolatedPositions)
+              .filter(([_, data]) => data.position)
+              .sort((a, b) => a[1].position - b[1].position)
+              .map(([driver, data], index) => {
+                const color = DRIVER_COLORS[driver] || '#FFFFFF';
+                return (
+                  <div key={driver} className="standing-item">
+                    <div className="standing-position">{data.position}</div>
+                    <div 
+                      className="standing-driver-badge"
+                      style={{ backgroundColor: color }}
+                    >
+                      {driver}
+                    </div>
+                    <div className="standing-info">
+                      {data.compound && (
+                        <span className={`tyre-indicator tyre-${data.compound.toLowerCase()}`}>
+                          {data.compound}
+                        </span>
+                      )}
+                      {data.speed && (
+                        <span className="speed-indicator">
+                          {Math.round(data.speed)} km/h
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
 
-          {/* Car positions */}
-          {Object.entries(frame.positions).map(([driver, data]) => {
-            if (!data.x || !data.y) return null;
-            
-            const color = DRIVER_COLORS[driver] || '#FFFFFF';
-            
-            return (
-              <g key={driver}>
-                <circle
-                  cx={data.x}
-                  cy={data.y}
-                  r="30"
-                  fill={color}
-                  stroke="#fff"
-                  strokeWidth="4"
-                  className="car-dot"
-                />
-                <text
-                  x={data.x}
-                  y={data.y + 5}
-                  textAnchor="middle"
-                  fill="#000"
-                  fontSize="20"
-                  fontWeight="bold"
-                >
-                  {driver}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+        {/* Right: Track Visualization */}
+        <div className="track-canvas">
+          <svg viewBox={viewBox} className="track-svg">
+            {/* Track outline */}
+            <path
+              d={trackPath}
+              fill="none"
+              stroke="#333"
+              strokeWidth="50"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d={trackPath}
+              fill="none"
+              stroke="#1a1a1a"
+              strokeWidth="35"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+
+            {/* Car positions */}
+            {Object.entries(interpolatedPositions).map(([driver, data]) => {
+              if (!data.x || !data.y) return null;
+              
+              const color = DRIVER_COLORS[driver] || '#FFFFFF';
+              
+              return (
+                <g key={driver}>
+                  <circle
+                    cx={data.x}
+                    cy={data.y}
+                    r="120"
+                    fill={color}
+                    stroke="#fff"
+                    strokeWidth="12"
+                    className="car-dot"
+                    onMouseEnter={(e) => {
+                      setHoveredDriver({ driver, ...data });
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 10 });
+                    }}
+                    onMouseLeave={() => setHoveredDriver(null)}
+                  />
+                </g>
+              );
+            })}
+          </svg>
+        </div>
       </div>
+
+      {/* Custom Tooltip */}
+      {hoveredDriver && (
+        <div 
+          className="driver-tooltip"
+          style={{
+            position: 'fixed',
+            left: `${tooltipPos.x}px`,
+            top: `${tooltipPos.y}px`,
+            transform: 'translate(-50%, -100%)',
+            pointerEvents: 'none',
+            zIndex: 1000
+          }}
+        >
+          <div className="tooltip-content">
+            <strong>{hoveredDriver.driver}</strong>
+            {hoveredDriver.position && <div>Position: P{hoveredDriver.position}</div>}
+            {hoveredDriver.compound && <div>Tyre: {hoveredDriver.compound}</div>}
+            {hoveredDriver.speed && <div>Speed: {Math.round(hoveredDriver.speed)} km/h</div>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

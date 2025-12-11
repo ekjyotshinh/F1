@@ -74,6 +74,17 @@ func main() {
 		proxyRequest(c, targetURL)
 	})
 
+	// Proxy handler for chunked telemetry (progressive loading)
+	r.GET("/api/telemetry/:year/:race_name/chunk/:chunk_num", func(c *gin.Context) {
+		year := c.Param("year")
+		raceName := c.Param("race_name")
+		chunkNum := c.Param("chunk_num")
+
+		targetURL := fmt.Sprintf("%s/api/telemetry/%s/%s/chunk/%s", pythonServiceURL, year, raceName, chunkNum)
+		proxyRequest(c, targetURL)
+	})
+
+
 	// Admin endpoint - clear cache
 	r.POST("/api/clear-cache", func(c *gin.Context) {
 		proxyClearCache(c, pythonServiceURL+"/api/clear-cache")
@@ -86,7 +97,7 @@ func main() {
 func proxyRequest(c *gin.Context, targetURL string) {
 	// Create HTTP client with longer timeout for FastF1 data loading
 	client := &http.Client{
-		Timeout: 120 * time.Second, // 2 minutes for FastF1 downloads
+		Timeout: 600 * time.Second, // 10 minutes for chunked telemetry loading
 	}
 	
 	resp, err := client.Get(targetURL)
