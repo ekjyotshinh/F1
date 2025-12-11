@@ -103,7 +103,6 @@ function TrackView({ year, raceId }) {
       driversInChunk.add(point.driver);
       
       // Round time_in_lap to 2 decimal places for grouping
-      // Backend samples at 1Hz, so points should naturally group
       const roundedTime = Math.round(point.time_in_lap * 100) / 100;
       
       // Create a unique key for each frame (lap + time)
@@ -126,7 +125,7 @@ function TrackView({ year, raceId }) {
         speed: point.speed
       };
       
-      // Update last known position for this driver
+      // Update last known position for this driver with timestamp
       lastKnownPositions.current[point.driver] = {
         x: point.x,
         y: point.y,
@@ -134,7 +133,8 @@ function TrackView({ year, raceId }) {
         compound: point.compound,
         speed: point.speed,
         lap: point.lap,
-        time_in_lap: roundedTime
+        time_in_lap: roundedTime,
+        timestamp: Date.now()
       };
     });
 
@@ -142,32 +142,10 @@ function TrackView({ year, raceId }) {
     setAllDrivers(prev => new Set([...prev, ...driversInChunk]));
 
     // Convert map to sorted array
-    const frames = Array.from(frameMap.values()).sort((a, b) => {
+    return Array.from(frameMap.values()).sort((a, b) => {
       if (a.lap !== b.lap) return a.lap - b.lap;
       return a.time_in_lap - b.time_in_lap;
     });
-
-    // Post-process: Add drivers from next lap to end-of-lap frames
-    // This prevents drivers from disappearing when they complete a lap
-    frames.forEach((frame, index) => {
-      // For each driver in the frame, check if there's a driver on the next lap
-      const nextLap = frame.lap + 1;
-      const nextLapFrames = frames.filter(f => f.lap === nextLap && f.time_in_lap < 5);
-      
-      if (nextLapFrames.length > 0) {
-        // Add drivers from the start of next lap to this frame
-        nextLapFrames.forEach(nextFrame => {
-          Object.keys(nextFrame.positions).forEach(driver => {
-            // Only add if driver is not already in current frame
-            if (!frame.positions[driver]) {
-              frame.positions[driver] = nextFrame.positions[driver];
-            }
-          });
-        });
-      }
-    });
-
-    return frames;
   };
 
 
@@ -264,6 +242,30 @@ function TrackView({ year, raceId }) {
       } else {
         // No next position, use current
         interpolatedPositions[driver] = currentPos;
+      }
+    }
+  });
+
+  // Fill in missing drivers using last known positions (lap transition handling)
+  allDrivers.forEach(driver => {
+    if (!interpolatedPositions[driver] && lastKnownPositions.current[driver]) {
+      const lastKnown = lastKnownPositions.current[driver];
+      // Only show if last known position is recent (within 5 seconds of current frame time)
+      // This handles lap transitions where a driver might be on the next lap
+      if (lastKnown.x && lastKnown.y) {
+        const timeDiff = Math.abs(frame.time_in_lap - lastKnown.time_in_lap);
+        const lapDiff = Math.abs(frame.lap - lastKnown.lap);
+        
+        // Show driver if they're within 5 seconds or on adjacent lap
+        if (timeDiff < 5 || (lapDiff === 1 && lastKnown.time_in_lap < 5)) {
+          interpolatedPositions[driver] = {
+            x: lastKnown.x,
+            y: lastKnown.y,
+            position: lastKnown.position,
+            compound: lastKnown.compound,
+            speed: null // No speed since it's stale data
+          };
+        }
       }
     }
   });
