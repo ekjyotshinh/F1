@@ -29,6 +29,7 @@ function TrackView({ year, raceId }) {
   const [allFrames, setAllFrames] = useState([]);
   const [hoveredDriver, setHoveredDriver] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [highlightedDriver, setHighlightedDriver] = useState(null);
   const [allDrivers, setAllDrivers] = useState(new Set());
   const lastKnownPositions = useRef({});
   const animationRef = useRef(null);
@@ -179,6 +180,23 @@ function TrackView({ year, raceId }) {
     };
   }, [isPlaying, playbackSpeed, telemetryData]);
 
+  // Update tooltip position when driver is highlighted from standings
+  useEffect(() => {
+    if (highlightedDriver && interpolatedPositions[highlightedDriver]) {
+      const data = interpolatedPositions[highlightedDriver];
+      // Find the SVG element to get proper coordinates
+      const svgElement = document.querySelector('.track-svg');
+      if (svgElement && data.x && data.y) {
+        const rect = svgElement.getBoundingClientRect();
+        const svgPoint = svgElement.createSVGPoint();
+        svgPoint.x = data.x;
+        svgPoint.y = data.y;
+        const screenPoint = svgPoint.matrixTransform(svgElement.getScreenCTM());
+        setTooltipPos({ x: screenPoint.x, y: screenPoint.y - 20 });
+      }
+    }
+  }, [highlightedDriver, interpolatedPositions]);
+
   if (loading) {
     return (
       <div className="track-view">
@@ -319,7 +337,12 @@ function TrackView({ year, raceId }) {
               .map(([driver, data], index) => {
                 const color = DRIVER_COLORS[driver] || '#FFFFFF';
                 return (
-                  <div key={driver} className="standing-item">
+                  <div 
+                    key={driver} 
+                    className={`standing-item ${highlightedDriver === driver ? 'highlighted' : ''}`}
+                    onMouseEnter={() => setHighlightedDriver(driver)}
+                    onMouseLeave={() => setHighlightedDriver(null)}
+                  >
                     <div className="standing-position">{data.position}</div>
                     <div 
                       className="standing-driver-badge"
@@ -371,17 +394,18 @@ function TrackView({ year, raceId }) {
               if (!data.x || !data.y) return null;
               
               const color = DRIVER_COLORS[driver] || '#FFFFFF';
+              const isHighlighted = highlightedDriver === driver;
               
               return (
                 <g key={driver}>
                   <circle
                     cx={data.x}
                     cy={data.y}
-                    r="120"
+                    r={isHighlighted ? "150" : "120"}
                     fill={color}
-                    stroke="#fff"
-                    strokeWidth="12"
-                    className="car-dot"
+                    stroke={isHighlighted ? "#FFD700" : "#fff"}
+                    strokeWidth={isHighlighted ? "16" : "12"}
+                    className={`car-dot ${isHighlighted ? 'highlighted-dot' : ''}`}
                     onMouseEnter={(e) => {
                       setHoveredDriver({ driver, ...data });
                       const rect = e.currentTarget.getBoundingClientRect();
@@ -397,7 +421,7 @@ function TrackView({ year, raceId }) {
       </div>
 
       {/* Custom Tooltip */}
-      {hoveredDriver && (
+      {(hoveredDriver || (highlightedDriver && interpolatedPositions[highlightedDriver])) && (
         <div 
           className="driver-tooltip"
           style={{
@@ -410,10 +434,13 @@ function TrackView({ year, raceId }) {
           }}
         >
           <div className="tooltip-content">
-            <strong>{hoveredDriver.driver}</strong>
-            {hoveredDriver.position && <div>Position: P{hoveredDriver.position}</div>}
-            {hoveredDriver.compound && <div>Tyre: {hoveredDriver.compound}</div>}
-            {hoveredDriver.speed && <div>Speed: {Math.round(hoveredDriver.speed)} km/h</div>}
+            <strong>{hoveredDriver?.driver || highlightedDriver}</strong>
+            {(hoveredDriver?.position || interpolatedPositions[highlightedDriver]?.position) && 
+              <div>Position: P{hoveredDriver?.position || interpolatedPositions[highlightedDriver]?.position}</div>}
+            {(hoveredDriver?.compound || interpolatedPositions[highlightedDriver]?.compound) && 
+              <div>Tyre: {hoveredDriver?.compound || interpolatedPositions[highlightedDriver]?.compound}</div>}
+            {(hoveredDriver?.speed || interpolatedPositions[highlightedDriver]?.speed) && 
+              <div>Speed: {Math.round(hoveredDriver?.speed || interpolatedPositions[highlightedDriver]?.speed)} km/h</div>}
           </div>
         </div>
       )}

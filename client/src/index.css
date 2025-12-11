@@ -901,6 +901,12 @@ button:focus-visible {
   transform: translateX(4px);
 }
 
+.standing-item.highlighted {
+  background: rgba(255, 215, 0, 0.2);
+  border-left: 3px solid #FFD700;
+  transform: translateX(6px);
+}
+
 .standing-position {
   font-size: 1rem;
   font-weight: 700;
@@ -1003,6 +1009,20 @@ button:focus-visible {
 
 .car-dot:hover {
   filter: drop-shadow(0 0 16px rgba(255, 255, 255, 1));
+}
+
+.highlighted-dot {
+  filter: drop-shadow(0 0 24px rgba(255, 215, 0, 1)) !important;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 
 /* Driver Tooltip */
