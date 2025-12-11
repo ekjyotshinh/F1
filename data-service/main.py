@@ -541,13 +541,13 @@ def get_telemetry_chunk(year: int, race_name: str, chunk_num: int, response: Res
                         tel_row = tel.loc[closest_idx]
                         
                         if pd.notnull(tel_row['X']) and pd.notnull(tel_row['Y']):
-                            # Calculate time within lap (0.0 to 1.0)
-                            time_in_lap = (current_time - start_time) / (end_time - start_time) if end_time > start_time else 0.0
+                            # Calculate time within lap in SECONDS (not fraction)
+                            time_in_lap_seconds = current_time - start_time
                             
                             telemetry_frames.append({
                                 "lap": lap_num,
                                 "driver": driver,
-                                "time_in_lap": round(time_in_lap, 3),
+                                "time_in_lap": round(time_in_lap_seconds, 2),
                                 "x": float(tel_row['X']),
                                 "y": float(tel_row['Y']),
                                 "position": int(row['Position']) if pd.notnull(row['Position']) else None,
