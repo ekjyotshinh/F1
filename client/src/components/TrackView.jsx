@@ -132,7 +132,9 @@ function TrackView({ year, raceId }) {
         y: point.y,
         position: point.position,
         compound: point.compound,
-        speed: point.speed
+        speed: point.speed,
+        lap: point.lap,
+        time_in_lap: roundedTime
       };
     });
 
@@ -140,10 +142,32 @@ function TrackView({ year, raceId }) {
     setAllDrivers(prev => new Set([...prev, ...driversInChunk]));
 
     // Convert map to sorted array
-    return Array.from(frameMap.values()).sort((a, b) => {
+    const frames = Array.from(frameMap.values()).sort((a, b) => {
       if (a.lap !== b.lap) return a.lap - b.lap;
       return a.time_in_lap - b.time_in_lap;
     });
+
+    // Post-process: Add drivers from next lap to end-of-lap frames
+    // This prevents drivers from disappearing when they complete a lap
+    frames.forEach((frame, index) => {
+      // For each driver in the frame, check if there's a driver on the next lap
+      const nextLap = frame.lap + 1;
+      const nextLapFrames = frames.filter(f => f.lap === nextLap && f.time_in_lap < 5);
+      
+      if (nextLapFrames.length > 0) {
+        // Add drivers from the start of next lap to this frame
+        nextLapFrames.forEach(nextFrame => {
+          Object.keys(nextFrame.positions).forEach(driver => {
+            // Only add if driver is not already in current frame
+            if (!frame.positions[driver]) {
+              frame.positions[driver] = nextFrame.positions[driver];
+            }
+          });
+        });
+      }
+    });
+
+    return frames;
   };
 
 
