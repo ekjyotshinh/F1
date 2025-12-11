@@ -94,7 +94,7 @@ function TrackView({ year, raceId }) {
 
   // Helper function to convert chunk telemetry format to frame format
   const processChunkFrames = (telemetryPoints) => {
-    // Group by lap and time to create frames
+    // Group by cumulative time (total race time) instead of lap+time
     const frameMap = new Map();
     const driversInChunk = new Set();
 
@@ -102,16 +102,18 @@ function TrackView({ year, raceId }) {
       // Track all drivers we've seen
       driversInChunk.add(point.driver);
       
-      // Round time_in_lap to 2 decimal places for grouping
-      const roundedTime = Math.round(point.time_in_lap * 100) / 100;
+      // Round cumulative_time to nearest second for grouping
+      const roundedTime = Math.round(point.cumulative_time);
       
-      // Create a unique key for each frame (lap + time)
-      const frameKey = `${point.lap}_${roundedTime}`;
+      // Create a unique key for each frame based on cumulative time
+      // This ensures all drivers at the same race time are in the same frame
+      const frameKey = `${roundedTime}`;
       
       if (!frameMap.has(frameKey)) {
         frameMap.set(frameKey, {
+          cumulative_time: roundedTime,
           lap: point.lap,
-          time_in_lap: roundedTime,
+          time_in_lap: point.time_in_lap,
           positions: {}
         });
       }
@@ -122,7 +124,8 @@ function TrackView({ year, raceId }) {
         y: point.y,
         position: point.position,
         compound: point.compound,
-        speed: point.speed
+        speed: point.speed,
+        lap: point.lap
       };
       
       // Update last known position for this driver with timestamp
@@ -133,7 +136,7 @@ function TrackView({ year, raceId }) {
         compound: point.compound,
         speed: point.speed,
         lap: point.lap,
-        time_in_lap: roundedTime,
+        cumulative_time: roundedTime,
         timestamp: Date.now()
       };
     });
@@ -141,10 +144,9 @@ function TrackView({ year, raceId }) {
     // Update the set of all drivers
     setAllDrivers(prev => new Set([...prev, ...driversInChunk]));
 
-    // Convert map to sorted array
+    // Convert map to sorted array by cumulative time
     return Array.from(frameMap.values()).sort((a, b) => {
-      if (a.lap !== b.lap) return a.lap - b.lap;
-      return a.time_in_lap - b.time_in_lap;
+      return a.cumulative_time - b.cumulative_time;
     });
   };
 
@@ -218,7 +220,7 @@ function TrackView({ year, raceId }) {
     return start + (end - start) * factor;
   };
 
-  // Interpolate positions - only show drivers with actual position data
+  // Interpolate positions
   const interpolatedPositions = {};
   
   // Get all drivers from current frame
@@ -227,9 +229,6 @@ function TrackView({ year, raceId }) {
     const nextPos = nextFrame.positions[driver];
 
     if (currentPos && currentPos.x && currentPos.y) {
-      // Update last known position for this driver
-      lastKnownPositions.current[driver] = currentPos;
-      
       if (nextPos && nextPos.x && nextPos.y) {
         // Interpolate between current and next position
         interpolatedPositions[driver] = {
@@ -237,35 +236,12 @@ function TrackView({ year, raceId }) {
           y: lerp(currentPos.y, nextPos.y, interpolationFactor),
           position: currentPos.position,
           compound: currentPos.compound,
-          speed: currentPos.speed
+          speed: currentPos.speed,
+          lap: currentPos.lap
         };
       } else {
         // No next position, use current
         interpolatedPositions[driver] = currentPos;
-      }
-    }
-  });
-
-  // Fill in missing drivers using last known positions (lap transition handling)
-  allDrivers.forEach(driver => {
-    if (!interpolatedPositions[driver] && lastKnownPositions.current[driver]) {
-      const lastKnown = lastKnownPositions.current[driver];
-      // Only show if last known position is recent (within 5 seconds of current frame time)
-      // This handles lap transitions where a driver might be on the next lap
-      if (lastKnown.x && lastKnown.y) {
-        const timeDiff = Math.abs(frame.time_in_lap - lastKnown.time_in_lap);
-        const lapDiff = Math.abs(frame.lap - lastKnown.lap);
-        
-        // Show driver if they're within 5 seconds or on adjacent lap
-        if (timeDiff < 5 || (lapDiff === 1 && lastKnown.time_in_lap < 5)) {
-          interpolatedPositions[driver] = {
-            x: lastKnown.x,
-            y: lastKnown.y,
-            position: lastKnown.position,
-            compound: lastKnown.compound,
-            speed: null // No speed since it's stale data
-          };
-        }
       }
     }
   });

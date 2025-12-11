@@ -544,10 +544,15 @@ def get_telemetry_chunk(year: int, race_name: str, chunk_num: int, response: Res
                             # Calculate time within lap in SECONDS (not fraction)
                             time_in_lap_seconds = current_time - start_time
                             
+                            # Calculate cumulative time (total race time)
+                            # This is the SessionTime which represents total elapsed time
+                            cumulative_time = current_time
+                            
                             telemetry_frames.append({
                                 "lap": lap_num,
                                 "driver": driver,
                                 "time_in_lap": round(time_in_lap_seconds, 2),
+                                "cumulative_time": round(cumulative_time, 2),
                                 "x": float(tel_row['X']),
                                 "y": float(tel_row['Y']),
                                 "position": int(row['Position']) if pd.notnull(row['Position']) else None,
