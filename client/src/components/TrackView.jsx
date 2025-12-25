@@ -31,11 +31,9 @@ function TrackView({ year, raceId }) {
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [highlightedDriver, setHighlightedDriver] = useState(null);
   const [allDrivers, setAllDrivers] = useState(new Set());
-  const [isBuffering, setIsBuffering] = useState(false); // New: buffering state
   const lastKnownPositions = useRef({});
   const animationRef = useRef(null);
   const lastUpdateRef = useRef(Date.now());
-  const wasPlayingBeforeBuffer = useRef(false); // Track if we were playing before buffering
 
   useEffect(() => {
     const fetchTelemetryChunks = async () => {
@@ -43,70 +41,35 @@ function TrackView({ year, raceId }) {
 
       setLoading(true);
       setError(null);
+      setError(null);
       setAllFrames([]);
       setTelemetryData(null);
       
       try {
         const TOTAL_CHUNKS = 10;
-        const BUFFER_SIZE = 3; // Load 3 chunks ahead
         let trackInfo = null;
         let accumulatedFrames = [];
-        let cumulativeTimeOffset = 0;
+        let cumulativeTimeOffset = 0; // Track the max cumulative time from previous chunks
 
-        // Function to fetch a single chunk
-        const fetchChunk = async (chunkNum) => {
+        // Fetch chunks sequentially
+        for (let chunkNum = 0; chunkNum < TOTAL_CHUNKS; chunkNum++) {
+          setLoadingProgress({ current: chunkNum + 1, total: TOTAL_CHUNKS });
+          
           const response = await axios.get(`${API_URL}/api/telemetry/${year}/${raceId}/chunk/${chunkNum}`);
+
           if (response.data.error) {
             throw new Error(response.data.error);
           }
-          return response.data;
-        };
 
-        // Load initial buffer (first BUFFER_SIZE chunks in parallel)
-        const initialChunks = Math.min(BUFFER_SIZE, TOTAL_CHUNKS);
-        const initialPromises = [];
-        for (let i = 0; i < initialChunks; i++) {
-          initialPromises.push(fetchChunk(i));
-        }
-
-        const initialResults = await Promise.all(initialPromises);
-        
-        // Process initial chunks
-        for (let i = 0; i < initialResults.length; i++) {
-          const response = initialResults[i];
-          
-          if (i === 0) {
-            trackInfo = response.track;
+          // Store track info from first chunk
+          if (chunkNum === 0) {
+            trackInfo = response.data.track;
           }
 
-          const chunkFrames = processChunkFrames(response.telemetry, cumulativeTimeOffset);
+          // Process the chunk's telemetry data and apply cumulative time offset
+          const chunkFrames = processChunkFrames(response.data.telemetry, cumulativeTimeOffset);
           
-          if (chunkFrames.length > 0) {
-            const maxCumulativeTime = Math.max(...chunkFrames.map(f => f.cumulative_time));
-            cumulativeTimeOffset = maxCumulativeTime;
-          }
-          
-          accumulatedFrames = [...accumulatedFrames, ...chunkFrames];
-        }
-
-        // Update state with initial buffer
-        setAllFrames(accumulatedFrames);
-        setTelemetryData({
-          track: trackInfo,
-          telemetry: accumulatedFrames,
-          total_frames: accumulatedFrames.length
-        });
-        setLoadingProgress({ current: initialChunks, total: TOTAL_CHUNKS });
-        setLoading(false);
-
-        // Continue loading remaining chunks in the background
-        for (let chunkNum = initialChunks; chunkNum < TOTAL_CHUNKS; chunkNum++) {
-          setLoadingProgress({ current: chunkNum + 1, total: TOTAL_CHUNKS });
-          
-          const response = await fetchChunk(chunkNum);
-
-          const chunkFrames = processChunkFrames(response.telemetry, cumulativeTimeOffset);
-          
+          // Update the cumulative time offset for the next chunk
           if (chunkFrames.length > 0) {
             const maxCumulativeTime = Math.max(...chunkFrames.map(f => f.cumulative_time));
             cumulativeTimeOffset = maxCumulativeTime;
@@ -114,13 +77,18 @@ function TrackView({ year, raceId }) {
           
           accumulatedFrames = [...accumulatedFrames, ...chunkFrames];
 
-          // Update state with accumulated data
+          // Update state with accumulated data so far
           setAllFrames(accumulatedFrames);
           setTelemetryData({
             track: trackInfo,
             telemetry: accumulatedFrames,
             total_frames: accumulatedFrames.length
           });
+
+          // After first chunk, user can start watching
+          if (chunkNum === 0) {
+            setLoading(false);
+          }
         }
 
         // All chunks loaded
@@ -198,7 +166,7 @@ function TrackView({ year, raceId }) {
   };
 
 
-  // Animation loop with buffering support
+  // Animation loop
   useEffect(() => {
     if (!isPlaying || !telemetryData) return;
 
@@ -211,22 +179,6 @@ function TrackView({ year, raceId }) {
         // Backend samples at 1Hz, so each frame represents ~1 second of race time
         // At 1x speed, we should advance 1 frame per second for real-time playback
         const nextFrame = prev + (deltaTime * playbackSpeed);
-        
-        // Check if we're approaching the end of loaded data
-        const framesRemaining = telemetryData.telemetry.length - nextFrame;
-        const bufferThreshold = playbackSpeed * 5; // 5 seconds ahead at current speed
-        
-        // If we're too close to the end and not all chunks loaded, start buffering
-        if (framesRemaining < bufferThreshold && loadingProgress.current < loadingProgress.total) {
-          if (!isBuffering) {
-            console.log('Buffering: approaching end of loaded data');
-            setIsBuffering(true);
-            wasPlayingBeforeBuffer.current = true;
-            setIsPlaying(false);
-          }
-          return prev; // Don't advance frame while buffering
-        }
-        
         if (nextFrame >= telemetryData.telemetry.length - 1) {
           setIsPlaying(false);
           return telemetryData.telemetry.length - 1;
@@ -245,26 +197,7 @@ function TrackView({ year, raceId }) {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isPlaying, playbackSpeed, telemetryData, loadingProgress, isBuffering]);
-
-  // Auto-resume playback after buffering
-  useEffect(() => {
-    if (isBuffering && telemetryData) {
-      const framesRemaining = telemetryData.telemetry.length - currentFrame;
-      const bufferThreshold = playbackSpeed * 10; // More buffer before resuming
-      
-      // Resume if we have enough buffer or all chunks are loaded
-      if (framesRemaining > bufferThreshold || loadingProgress.current === loadingProgress.total) {
-        console.log('Buffer complete, resuming playback');
-        setIsBuffering(false);
-        if (wasPlayingBeforeBuffer.current) {
-          setIsPlaying(true);
-          wasPlayingBeforeBuffer.current = false;
-        }
-      }
-    }
-  }, [telemetryData, currentFrame, isBuffering, playbackSpeed, loadingProgress]);
-
+  }, [isPlaying, playbackSpeed, telemetryData]);
 
   if (loading) {
     return (
@@ -273,10 +206,10 @@ function TrackView({ year, raceId }) {
         <div className="analytics-loading">
           <Loader />
           <p className="loading-notice">
-            ⏱️ Loading initial buffer ({loadingProgress.current} of 3 chunks)...
+            ⏱️ Loading chunk {loadingProgress.current} of {loadingProgress.total}...
           </p>
           <p className="loading-notice">
-            Playback will start in ~30-60 seconds
+            First chunk will display in ~30-60 seconds
           </p>
         </div>
       </div>
@@ -351,12 +284,7 @@ function TrackView({ year, raceId }) {
       <div className="track-header">
         <h2>🏁 {telemetryData.track.name}</h2>
         <p>Lap {frame.lap} / {telemetryData.track.total_laps}</p>
-        {isBuffering && (
-          <p className="loading-notice" style={{ fontSize: '0.9em', color: '#ff9500', fontWeight: 'bold' }}>
-            ⏳ Buffering... Loading more data
-          </p>
-        )}
-        {!isBuffering && loadingProgress.current < loadingProgress.total && (
+        {loadingProgress.current < loadingProgress.total && (
           <p className="loading-notice" style={{ fontSize: '0.9em', color: '#ffa500' }}>
             📥 Loading chunk {loadingProgress.current} of {loadingProgress.total} in background...
           </p>
@@ -368,9 +296,8 @@ function TrackView({ year, raceId }) {
         <button 
           className="play-btn"
           onClick={() => setIsPlaying(!isPlaying)}
-          disabled={isBuffering}
         >
-          {isBuffering ? '⏳ Buffering...' : isPlaying ? '⏸️ Pause' : '▶️ Play'}
+          {isPlaying ? '⏸️ Pause' : '▶️ Play'}
         </button>
 
         <div className="speed-controls">
