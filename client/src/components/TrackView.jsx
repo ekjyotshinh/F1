@@ -79,19 +79,12 @@ function TrackView({ year, raceId }) {
           accumulatedFrames = [...accumulatedFrames, ...chunkFrames];
 
           // Update state with accumulated data so far using functional updates
-          setAllFrames(prev => {
-            console.log(`Chunk ${chunkNum}: prev.length=${prev.length}, chunkFrames.length=${chunkFrames.length}, new total=${prev.length + chunkFrames.length}`);
-            return [...prev, ...chunkFrames];
-          });
-          setTelemetryData(prev => {
-            const newTotal = prev ? prev.total_frames + chunkFrames.length : chunkFrames.length;
-            console.log(`Chunk ${chunkNum}: Setting telemetry - prev frames=${prev?.total_frames || 0}, chunk frames=${chunkFrames.length}, new total=${newTotal}`);
-            return {
-              track: trackInfo,
-              telemetry: prev ? [...prev.telemetry, ...chunkFrames] : chunkFrames,
-              total_frames: newTotal
-            };
-          });
+          setAllFrames(prev => [...prev, ...chunkFrames]);
+          setTelemetryData(prev => ({
+            track: trackInfo,
+            telemetry: prev ? [...prev.telemetry, ...chunkFrames] : chunkFrames,
+            total_frames: prev ? prev.total_frames + chunkFrames.length : chunkFrames.length
+          }));
 
           // After first chunk, user can start watching
           if (chunkNum === 0) {
@@ -227,7 +220,7 @@ function TrackView({ year, raceId }) {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isPlaying, playbackSpeed, telemetryData]);
+  }, [isPlaying, playbackSpeed]); // Removed telemetryData - we don't want to restart animation when chunks append
 
   if (loading) {
     return (
