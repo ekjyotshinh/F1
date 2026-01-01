@@ -1039,6 +1039,7 @@ button:focus-visible {
 
 .track-svg {
   width: 100%;
+  max-width: 600px;
   height: auto;
   min-height: 400px;
 }

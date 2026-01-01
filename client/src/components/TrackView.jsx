@@ -258,20 +258,18 @@ function TrackView({ year, raceId }) {
     return start + (end - start) * factor;
   };
 
-  // Interpolate positions
-  const interpolatedPositions = {};
+  // Interpolate positions for ALL drivers (for standings display)
+  const allInterpolatedPositions = {};
   
-  // Get all drivers from current frame and filter by selection
+  // Get all drivers from current frame
   Object.keys(frame.positions).forEach(driver => {
-    // Skip if driver is not selected
-    if (!selectedDrivers.has(driver)) return;
     const currentPos = frame.positions[driver];
     const nextPos = nextFrame.positions[driver];
 
     if (currentPos && currentPos.x && currentPos.y) {
       if (nextPos && nextPos.x && nextPos.y) {
         // Interpolate between current and next position
-        interpolatedPositions[driver] = {
+        allInterpolatedPositions[driver] = {
           x: lerp(currentPos.x, nextPos.x, interpolationFactor),
           y: lerp(currentPos.y, nextPos.y, interpolationFactor),
           position: currentPos.position,
@@ -281,8 +279,16 @@ function TrackView({ year, raceId }) {
         };
       } else {
         // No next position, use current
-        interpolatedPositions[driver] = currentPos;
+        allInterpolatedPositions[driver] = currentPos;
       }
+    }
+  });
+
+  // Filter for selected drivers only (for track display)
+  const interpolatedPositions = {};
+  Object.keys(allInterpolatedPositions).forEach(driver => {
+    if (selectedDrivers.has(driver)) {
+      interpolatedPositions[driver] = allInterpolatedPositions[driver];
     }
   });
 
@@ -359,15 +365,15 @@ function TrackView({ year, raceId }) {
             <h3>📊 Current Standings</h3>
             <div className="selection-actions">
               <button onClick={selectAllDrivers} className="select-action-btn" title="Show all drivers">
-                ✓ All
+                Show All
               </button>
               <button onClick={deselectAllDrivers} className="select-action-btn" title="Hide all drivers">
-                ✗ None
+                Hide All
               </button>
             </div>
           </div>
           <div className="standings-list">
-            {Object.entries(interpolatedPositions)
+            {Object.entries(allInterpolatedPositions)
               .filter(([_, data]) => data.position)
               .sort((a, b) => a[1].position - b[1].position)
               .map(([driver, data], index) => {
@@ -461,7 +467,7 @@ function TrackView({ year, raceId }) {
       </div>
 
       {/* Custom Tooltip */}
-      {(hoveredDriver || (highlightedDriver && interpolatedPositions[highlightedDriver])) && (
+      {(hoveredDriver || (highlightedDriver && allInterpolatedPositions[highlightedDriver])) && (
         <div 
           className="driver-tooltip"
           style={{
@@ -475,12 +481,12 @@ function TrackView({ year, raceId }) {
         >
           <div className="tooltip-content">
             <strong>{hoveredDriver?.driver || highlightedDriver}</strong>
-            {(hoveredDriver?.position || interpolatedPositions[highlightedDriver]?.position) && 
-              <div>Position: P{hoveredDriver?.position || interpolatedPositions[highlightedDriver]?.position}</div>}
-            {(hoveredDriver?.compound || interpolatedPositions[highlightedDriver]?.compound) && 
-              <div>Tyre: {hoveredDriver?.compound || interpolatedPositions[highlightedDriver]?.compound}</div>}
-            {(hoveredDriver?.speed || interpolatedPositions[highlightedDriver]?.speed) && 
-              <div>Speed: {Math.round(hoveredDriver?.speed || interpolatedPositions[highlightedDriver]?.speed)} km/h</div>}
+            {(hoveredDriver?.position || allInterpolatedPositions[highlightedDriver]?.position) && 
+              <div>Position: P{hoveredDriver?.position || allInterpolatedPositions[highlightedDriver]?.position}</div>}
+            {(hoveredDriver?.compound || allInterpolatedPositions[highlightedDriver]?.compound) && 
+              <div>Tyre: {hoveredDriver?.compound || allInterpolatedPositions[highlightedDriver]?.compound}</div>}
+            {(hoveredDriver?.speed || allInterpolatedPositions[highlightedDriver]?.speed) && 
+              <div>Speed: {Math.round(hoveredDriver?.speed || allInterpolatedPositions[highlightedDriver]?.speed)} km/h</div>}
           </div>
         </div>
       )}
