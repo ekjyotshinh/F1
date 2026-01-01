@@ -77,13 +77,13 @@ function TrackView({ year, raceId }) {
           
           accumulatedFrames = [...accumulatedFrames, ...chunkFrames];
 
-          // Update state with accumulated data so far
-          setAllFrames(accumulatedFrames);
-          setTelemetryData({
+          // Update state with accumulated data so far using functional updates
+          setAllFrames(prev => [...prev, ...chunkFrames]);
+          setTelemetryData(prev => ({
             track: trackInfo,
-            telemetry: accumulatedFrames,
-            total_frames: accumulatedFrames.length
-          });
+            telemetry: prev ? [...prev.telemetry, ...chunkFrames] : chunkFrames,
+            total_frames: prev ? prev.total_frames + chunkFrames.length : chunkFrames.length
+          }));
 
           // After first chunk, user can start watching
           if (chunkNum === 0) {
