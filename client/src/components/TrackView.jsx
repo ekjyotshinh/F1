@@ -31,6 +31,7 @@ function TrackView({ year, raceId }) {
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [highlightedDriver, setHighlightedDriver] = useState(null);
   const [allDrivers, setAllDrivers] = useState(new Set());
+  const [selectedDrivers, setSelectedDrivers] = useState(new Set());
   const lastKnownPositions = useRef({});
   const animationRef = useRef(null);
   const lastUpdateRef = useRef(Date.now());
@@ -103,6 +104,28 @@ function TrackView({ year, raceId }) {
 
     fetchTelemetryChunks();
   }, [year, raceId]);
+
+  // Initialize selected drivers when allDrivers changes
+  useEffect(() => {
+    setSelectedDrivers(new Set(allDrivers));
+  }, [allDrivers]);
+
+  // Toggle driver selection
+  const toggleDriver = (driver) => {
+    setSelectedDrivers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(driver)) {
+        newSet.delete(driver);
+      } else {
+        newSet.add(driver);
+      }
+      return newSet;
+    });
+  };
+
+  // Select/Deselect all drivers
+  const selectAllDrivers = () => setSelectedDrivers(new Set(allDrivers));
+  const deselectAllDrivers = () => setSelectedDrivers(new Set());
 
   // Helper function to convert chunk telemetry format to frame format
   const processChunkFrames = (telemetryPoints, timeOffset = 0) => {
@@ -238,8 +261,10 @@ function TrackView({ year, raceId }) {
   // Interpolate positions
   const interpolatedPositions = {};
   
-  // Get all drivers from current frame
+  // Get all drivers from current frame and filter by selection
   Object.keys(frame.positions).forEach(driver => {
+    // Skip if driver is not selected
+    if (!selectedDrivers.has(driver)) return;
     const currentPos = frame.positions[driver];
     const nextPos = nextFrame.positions[driver];
 
@@ -325,23 +350,38 @@ function TrackView({ year, raceId }) {
         />
       </div>
 
+
       {/* Split Screen: Standings + Track */}
       <div className="race-split-view">
         {/* Left: Live Standings */}
         <div className="live-standings">
-          <h3>📊 Current Standings</h3>
+          <div className="standings-header">
+            <h3>📊 Current Standings</h3>
+            <div className="selection-actions">
+              <button onClick={selectAllDrivers} className="select-action-btn" title="Show all drivers">
+                ✓ All
+              </button>
+              <button onClick={deselectAllDrivers} className="select-action-btn" title="Hide all drivers">
+                ✗ None
+              </button>
+            </div>
+          </div>
           <div className="standings-list">
             {Object.entries(interpolatedPositions)
               .filter(([_, data]) => data.position)
               .sort((a, b) => a[1].position - b[1].position)
               .map(([driver, data], index) => {
                 const color = DRIVER_COLORS[driver] || '#FFFFFF';
+                const isSelected = selectedDrivers.has(driver);
                 return (
                   <div 
                     key={driver} 
-                    className={`standing-item ${highlightedDriver === driver ? 'highlighted' : ''}`}
+                    className={`standing-item ${highlightedDriver === driver ? 'highlighted' : ''} ${!isSelected ? 'deselected' : ''}`}
                     onMouseEnter={() => setHighlightedDriver(driver)}
                     onMouseLeave={() => setHighlightedDriver(null)}
+                    onClick={() => toggleDriver(driver)}
+                    style={{ cursor: 'pointer' }}
+                    title={isSelected ? 'Click to hide driver' : 'Click to show driver'}
                   >
                     <div className="standing-position">{data.position}</div>
                     <div 
