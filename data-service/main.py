@@ -54,7 +54,7 @@ def get_years(response: Response):
     response.headers["Cache-Control"] = "public, max-age=86400, immutable"  # 24 hours
     # Return a list of recent years supported by FastF1 (and relevant for this app)
     # FastF1 data goes back quite a way, but let's stick to recent history for the UI
-    return [year for year in range(2018, 2025)]
+    return [year for year in range(2018, 2027)]
 
 
 @app.get("/api/schedule/{year}")
